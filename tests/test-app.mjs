@@ -207,6 +207,21 @@ const afterAdd = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-stat
 assert.equal(afterAdd.words.length, 1501, 'Manual word entry must persist');
 assert.deepEqual(afterAdd.words.at(-1).accepted, ['test phrase', 'test-phrase']);
 
+const importResult = VazheyarTest.importWords(`
+## Duplicate handling
+1. MONDAY
+2. center
+3. centre / center
+4. unique-import-word
+5. UNIQUE-IMPORT-WORD
+`);
+assert.equal(importResult.found, 5);
+assert.equal(importResult.added, 1);
+assert.equal(importResult.skipped, 4, 'Import must reject exact, case-only, variant, and within-file duplicates');
+const afterImport = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+assert.equal(afterImport.words.length, 1502);
+assert.equal(afterImport.words.filter((word) => VazheyarTest.normalizeAnswer(word.term) === 'unique-import-word').length, 1);
+
 document.querySelector('[data-view="settings"]').click();
 assert.equal(document.querySelector('.repo-link').href, 'https://github.com/OkBayat/el2-leitner');
 
