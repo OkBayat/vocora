@@ -2,8 +2,8 @@
   'use strict';
 
   const STORAGE_KEY = 'vazheyar-ielts-state-v1';
-  const SCHEMA_VERSION = 1;
-  const BOX_INTERVALS = [0, 1, 2, 4, 8, 16];
+  const SCHEMA_VERSION = 2;
+  const BOX_WAIT_DAYS = [0, 1, 2, 3, 7, 14];
   const PAGE_SIZE = 40;
   const faNumber = new Intl.NumberFormat('fa-IR');
   const faDate = new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -62,7 +62,10 @@
       mistakes: Number(source.mistakes) || 0,
       currentStreak: Number(source.currentStreak) || 0,
       introducedOn: source.introducedOn || null,
+      addedSource: source.addedSource || null,
       lastReviewed: source.lastReviewed || null,
+      lastPromotedDay: source.lastPromotedDay || null,
+      blockedUntil: source.blockedUntil || null,
       masteredAt: source.masteredAt || null
     };
   }
@@ -86,6 +89,7 @@
       if (!saved) return defaultState();
       const parsed = JSON.parse(saved);
       if (!parsed || !Array.isArray(parsed.words)) throw new Error('Invalid state');
+      const sourceVersion = Number(parsed.schemaVersion) || 1;
       const clean = {
         ...defaultState(),
         ...parsed,
@@ -95,6 +99,7 @@
         daily: parsed.daily || {},
         history: Array.isArray(parsed.history) ? parsed.history : []
       };
+      if (sourceVersion < 2) migrateLegacyProgress(clean);
       return clean;
     } catch (error) {
       console.error('Could not load saved data:', error);
@@ -133,23 +138,127 @@
 
   function todayRecord() {
     const today = localDay();
-    if (!state.daily[today]) {
-      state.daily[today] = { attempts: 0, correct: 0, wrong: 0, newLearned: 0, sessions: 0, durationSeconds: 0 };
+    const defaults = { attempts: 0, correct: 0, wrong: 0, newAdded: 0, sessions: 0, durationSeconds: 0 };
+    const existing = state.daily[today] || {};
+    state.daily[today] = { ...defaults, ...existing };
+    if (!Object.prototype.hasOwnProperty.call(existing, 'newAdded')) {
+      state.daily[today].newAdded = state.words.filter((word) => word.introducedOn === today).length;
     }
     return state.daily[today];
+  }
+
+  function migrateLegacyProgress(targetState) {
+    const eventsByWord = new Map();
+    targetState.history.forEach((event) => {
+      if (!event.wordId) return;
+      if (!eventsByWord.has(event.wordId)) eventsByWord.set(event.wordId, []);
+      eventsByWord.get(event.wordId).push(event);
+    });
+    targetState.words.forEach((word) => {
+      const events = (eventsByWord.get(word.id) || []).sort((a, b) => String(a.at || a.day).localeCompare(String(b.at || b.day)));
+      if (!events.length) return;
+      const firstDay = events[0].day || localDay(new Date(events[0].at));
+      word.box = 1;
+      word.introducedOn = firstDay;
+      word.due = firstDay;
+      word.lastPromotedDay = null;
+      word.blockedUntil = null;
+      word.masteredAt = null;
+      events.forEach((event) => {
+        const day = event.day || localDay(new Date(event.at));
+        if (!event.correct) {
+          word.box = 1;
+          word.due = addDays(day, 1);
+          word.blockedUntil = addDays(day, 1);
+          word.masteredAt = null;
+          return;
+        }
+        const eligible = word.due <= day && (!word.blockedUntil || word.blockedUntil <= day) && word.lastPromotedDay !== day;
+        if (!eligible) return;
+        word.box = Math.min(5, word.box + 1);
+        word.lastPromotedDay = day;
+        word.blockedUntil = null;
+        word.due = addDays(day, BOX_WAIT_DAYS[word.box]);
+        if (word.box === 5) word.masteredAt = event.at || new Date(`${day}T12:00:00`).toISOString();
+      });
+    });
+  }
+
+  function ensureDailyWords() {
+    const today = localDay();
+    const daily = todayRecord();
+    const alreadyAdded = state.words.filter((word) => word.introducedOn === today).length;
+    daily.newAdded = Math.max(Number(daily.newAdded) || 0, alreadyAdded);
+    const remaining = Math.max(0, state.settings.dailyNew - daily.newAdded);
+    if (!remaining) return 0;
+    const newcomers = state.words
+      .filter((word) => word.box === 0 && !word.introducedOn)
+      .sort((a, b) => a.number - b.number)
+      .slice(0, remaining);
+    const activated = activateUnseenWords(newcomers, 'daily');
+    if (activated.length) saveState();
+    return activated.length;
+  }
+
+  function activateUnseenWords(words, source = 'manual') {
+    const today = localDay();
+    const activated = words.filter((word) => word && word.box === 0 && !word.introducedOn);
+    activated.forEach((word) => {
+      word.box = 1;
+      word.introducedOn = today;
+      word.due = today;
+      word.blockedUntil = null;
+      word.lastPromotedDay = null;
+      word.addedSource = source;
+    });
+    todayRecord().newAdded += activated.length;
+    return activated;
+  }
+
+  function addWordToBoxOne(id) {
+    const word = state.words.find((item) => item.id === id);
+    const [activated] = activateUnseenWords([word], 'word-bank');
+    if (!activated) return showToast('این واژه قبلاً وارد یکی از خانه‌ها شده است.');
+    saveState();
+    renderWords();
+    renderGlobal();
+    showToast(`«${word.term}» به خانهٔ ۱ اضافه شد و آمادهٔ آزمون است.`);
+  }
+
+  function openNewWordsDialog() {
+    const available = state.words.filter((word) => word.box === 0 && !word.introducedOn).length;
+    if (!available) return showToast('همهٔ واژه‌ها قبلاً وارد جعبه شده‌اند.');
+    const maximum = Math.min(50, available);
+    $('#availableWordsCount').textContent = faNumber.format(available);
+    $('#newWordsCountInput').max = String(maximum);
+    $('#newWordsCountInput').value = String(Math.min(10, maximum));
+    $('#newWordsDialog').showModal();
+    setTimeout(() => $('#newWordsCountInput').focus(), 50);
+  }
+
+  function startSelectedNewWords(event) {
+    event.preventDefault();
+    const available = state.words.filter((word) => word.box === 0 && !word.introducedOn).sort((a, b) => a.number - b.number);
+    const maximum = Math.min(50, available.length);
+    const requested = clamp(Number($('#newWordsCountInput').value) || 1, 1, maximum);
+    const activated = activateUnseenWords(available.slice(0, requested), 'home-selection');
+    if (!activated.length) return showToast('لغت جدیدی برای افزودن باقی نمانده است.');
+    saveState();
+    $('#newWordsDialog').close();
+    showView('review');
+    startSession('new', activated.map((word) => word.id));
   }
 
   function getDueWords() {
     const today = localDay();
     return state.words
-      .filter((word) => word.box > 0 && word.due && word.due <= today)
+      .filter((word) => word.box > 0 && word.due && word.due <= today && (!word.blockedUntil || word.blockedUntil <= today))
       .sort((a, b) => (a.due || '').localeCompare(b.due || '') || b.mistakes - a.mistakes || a.number - b.number);
   }
 
-  function getDailyNewWords(ignoreLimit = false) {
-    const introduced = todayRecord().newLearned;
-    const remaining = ignoreLimit ? state.words.length : Math.max(0, state.settings.dailyNew - introduced);
-    return state.words.filter((word) => word.box === 0 && !word.introducedOn).sort((a, b) => a.number - b.number).slice(0, remaining);
+  function getNewWordsDueToday() {
+    const today = localDay();
+    return getDueWords().filter((word) => word.introducedOn === today && word.box === 1);
   }
 
   function totalStats() {
@@ -209,6 +318,7 @@
   }
 
   function renderGlobal() {
+    ensureDailyWords();
     const due = getDueWords().length;
     const stats = totalStats();
     const masteredPercent = state.words.length ? Math.round((stats.mastered / state.words.length) * 100) : 0;
@@ -217,7 +327,7 @@
     $('#navDueBadge').textContent = faNumber.format(due);
     $('#sideProgressText').textContent = `${faNumber.format(masteredPercent)}٪`;
     $('#sideProgressBar').style.width = `${masteredPercent}%`;
-    $('#sideProgressCaption').textContent = `${faNumber.format(stats.mastered)} از ${faNumber.format(state.words.length)} کلمه در جعبه ۵`;
+    $('#sideProgressCaption').textContent = `${faNumber.format(stats.mastered)} از ${faNumber.format(state.words.length)} کلمه در خانهٔ ۵`;
   }
 
   function renderDashboard() {
@@ -226,7 +336,7 @@
     const due = getDueWords().length;
     const stats = totalStats();
     const dailyProgress = clamp(Math.round((today.attempts / state.settings.dailyGoal) * 100), 0, 100);
-    const newRemaining = Math.max(0, state.settings.dailyNew - today.newLearned);
+    const newRemaining = Math.max(0, state.settings.dailyNew - today.newAdded);
     $('#dailyRing').style.setProperty('--progress', `${dailyProgress * 3.6}deg`);
     $('#dailyRingValue').textContent = faNumber.format(today.attempts);
     $('#dailyRingGoal').textContent = `از ${faNumber.format(state.settings.dailyGoal)}`;
@@ -234,17 +344,19 @@
     const totalAccuracy = accuracy(stats.correct, stats.attempts);
     $('#accuracyStat').textContent = totalAccuracy === null ? '—' : faNumber.format(totalAccuracy);
     $('#masteredStat').textContent = faNumber.format(stats.mastered);
-    $('#newStat').textContent = faNumber.format(today.newLearned);
+    $('#newStat').textContent = faNumber.format(today.newAdded);
     $('#newStatGoal').textContent = `از ${faNumber.format(state.settings.dailyNew)}`;
 
     if (due === 0 && newRemaining === 0) {
       $('#heroTitle').textContent = 'برنامه‌ی امروز کامل شد!';
-      $('#heroDescription').textContent = 'عالی بود. برای تثبیت یادگیری، فردا دوباره برگرد.';
-      $('#startReviewBtn').textContent = 'تمرین اضافه';
+      $('#heroDescription').textContent = 'عالی بود. اگر دوست داری، تمرین آزاد خانهٔ ۱ را ادامه بده.';
+      $('#startReviewBtn').textContent = 'مرور امروز کامل شد';
+      $('#startReviewBtn').disabled = true;
     } else {
-      $('#heroTitle').textContent = due ? `${faNumber.format(due)} مرور در انتظار توست` : `آماده‌ای ${faNumber.format(newRemaining)} کلمه‌ی تازه یاد بگیری؟`;
+      $('#heroTitle').textContent = due ? `${faNumber.format(due)} مرور در انتظار توست` : 'برنامهٔ امروز کامل شد!';
       $('#heroDescription').textContent = 'مرورهای موعددار و لغات جدیدت را در یک جلسه‌ی کوتاه انجام بده.';
       $('#startReviewBtn').textContent = 'شروع مرور امروز';
+      $('#startReviewBtn').disabled = false;
     }
     renderActivityChart();
     renderBoxDistribution();
@@ -271,7 +383,7 @@
     const learningWords = state.words.filter((word) => word.box > 0);
     const counts = [1, 2, 3, 4, 5].map((box) => learningWords.filter((word) => word.box === box).length);
     const max = Math.max(...counts, 1);
-    $('#boxDistribution').innerHTML = counts.map((count, index) => `<div class="box-row"><span>جعبه ${faNumber.format(index + 1)}</span><div class="progress-track"><i style="width:${Math.round((count / max) * 100)}%"></i></div><span class="box-count">${faNumber.format(count)}</span></div>`).join('');
+    $('#boxDistribution').innerHTML = counts.map((count, index) => `<div class="box-row"><span>خانهٔ ${faNumber.format(index + 1)}</span><div class="progress-track"><i style="width:${Math.round((count / max) * 100)}%"></i></div><span class="box-count">${faNumber.format(count)}</span></div>`).join('');
   }
 
   function hardWords(limit = 20) {
@@ -295,8 +407,9 @@
     $('#reviewSession').classList.add('hidden');
     $('#sessionComplete').classList.add('hidden');
     const due = getDueWords();
-    const newWords = getDailyNewWords();
-    const total = due.length + newWords.length;
+    const newWords = getNewWordsDueToday();
+    const scheduledWords = due.filter((word) => !newWords.includes(word));
+    const total = due.length;
     if (!total) {
       $('#reviewSetup').classList.add('hidden');
       $('#reviewEmpty').classList.remove('hidden');
@@ -304,29 +417,49 @@
     }
     $('#reviewEmpty').classList.add('hidden');
     $('#reviewSetup').classList.remove('hidden');
-    $('#setupDue').textContent = faNumber.format(due.length);
+    $('#setupDue').textContent = faNumber.format(scheduledWords.length);
     $('#setupNew').textContent = faNumber.format(newWords.length);
     $('#setupMinutes').textContent = faNumber.format(Math.max(1, Math.ceil(total * 0.35)));
     $('#reviewSetupSummary').textContent = `${faNumber.format(total)} کارت برای امروز آماده است.`;
   }
 
-  function buildReviewQueue(extra = false) {
-    const due = getDueWords();
-    const fresh = getDailyNewWords(false);
-    let queue = [...due, ...fresh];
+  function buildReviewQueue() {
+    let queue = getDueWords();
     const limit = Number($('#sessionLimit').value || 0);
     if (limit) queue = queue.slice(0, limit);
     return queue.map((word) => word.id);
   }
 
-  function startSession(extra = false) {
-    reviewQueue = buildReviewQueue(extra);
-    if (!reviewQueue.length && extra) {
-      const candidates = [...state.words].filter((word) => word.box > 0).sort((a, b) => b.mistakes - a.mistakes || a.lastReviewed?.localeCompare(b.lastReviewed || '') || 0).slice(0, 10);
-      reviewQueue = candidates.map((word) => word.id);
+  function weightedBoxOneBatch(size = 24, excludeId = null) {
+    const words = state.words.filter((word) => word.box === 1);
+    if (!words.length) return [];
+    const result = [];
+    let previousId = excludeId;
+    for (let index = 0; index < size; index += 1) {
+      const totalWeight = words.reduce((sum, word) => sum + 1 + Math.min(word.mistakes, 8) * 2, 0);
+      let cursor = Math.random() * totalWeight;
+      let selected = words[0];
+      for (const word of words) {
+        cursor -= 1 + Math.min(word.mistakes, 8) * 2;
+        if (cursor <= 0) { selected = word; break; }
+      }
+      if (words.length > 1 && selected.id === previousId) {
+        selected = words.find((word) => word.id !== previousId) || selected;
+      }
+      result.push(selected.id);
+      previousId = selected.id;
     }
-    if (!reviewQueue.length) return showToast('کارتی برای تمرین وجود ندارد.');
-    session = { startedAt: Date.now(), initialCount: reviewQueue.length, answered: 0, correct: 0, wrong: 0, completed: false };
+    return result;
+  }
+
+  function startSession(mode = 'scheduled', selectedWordIds = []) {
+    if (session && !session.completed) recordSessionTime();
+    reviewQueue = mode === 'box1' ? weightedBoxOneBatch() : mode === 'new' ? [...selectedWordIds] : buildReviewQueue();
+    if (!reviewQueue.length) {
+      const message = mode === 'box1' ? 'هنوز کارتی در خانهٔ ۱ وجود ندارد.' : mode === 'new' ? 'لغت جدیدی برای آزمون انتخاب نشده است.' : 'مرور موعدداری برای امروز وجود ندارد.';
+      return showToast(message);
+    }
+    session = { mode, startedAt: Date.now(), initialCount: reviewQueue.length, answered: 0, correct: 0, wrong: 0, completed: false, retryCounts: {}, recorded: false };
     currentWord = null;
     $('#reviewSetup').classList.add('hidden');
     $('#reviewEmpty').classList.add('hidden');
@@ -337,10 +470,12 @@
 
   function showNextCard() {
     feedbackOpen = false;
+    if (!reviewQueue.length && session?.mode === 'box1') reviewQueue = weightedBoxOneBatch(24, currentWord?.id);
     if (!reviewQueue.length) return finishSession();
     const id = reviewQueue.shift();
     currentWord = state.words.find((word) => word.id === id);
     if (!currentWord) return showNextCard();
+    if (session.mode === 'box1' && currentWord.box !== 1) return showNextCard();
     $('#answerForm').classList.remove('hidden');
     $('#dontKnowBtn').classList.remove('hidden');
     $('#answerFeedback').classList.add('hidden');
@@ -348,14 +483,23 @@
     $('#answerInput').value = '';
     $('#answerInput').disabled = false;
     $('#cardCategory').textContent = currentWord.category;
-    $('#cardBox').textContent = currentWord.box ? `جعبه ${faNumber.format(currentWord.box)}` : 'کلمه جدید';
-    $('#cardInstruction').textContent = 'کلمه را بشنو و املای آن را بنویس.';
+    $('#cardBox').textContent = currentWord.box ? `خانهٔ ${faNumber.format(currentWord.box)}` : 'هنوز وارد نشده';
+    $('#cardInstruction').textContent = session.mode === 'box1'
+      ? 'تمرین آزاد خانهٔ ۱؛ این پاسخ جای کارت را تغییر نمی‌دهد.'
+      : session.mode === 'new' ? 'آزمون اولیه؛ پاسخ درست کارت را مستقیم به خانهٔ ۲ می‌برد.' : 'کلمه را بشنو و املای آن را بنویس.';
     updateSessionBar();
     setTimeout(() => speakWord(1), 250);
     setTimeout(() => $('#answerInput').focus(), 350);
   }
 
   function updateSessionBar() {
+    if (session.mode === 'box1') {
+      $('#sessionCounter').textContent = `تمرین آزاد · ${faNumber.format(session.answered)} پاسخ`;
+      const freeAccuracy = accuracy(session.correct, session.answered);
+      $('#sessionAccuracy').textContent = `دقت: ${freeAccuracy === null ? '—' : `${faNumber.format(freeAccuracy)}٪`}`;
+      $('#sessionProgressBar').style.width = '100%';
+      return;
+    }
     const completedUnique = Math.min(session.answered, session.initialCount);
     const current = Math.min(session.initialCount, completedUnique + 1);
     $('#sessionCounter').textContent = `کارت ${faNumber.format(current)} از ${faNumber.format(session.initialCount)}`;
@@ -381,32 +525,48 @@
   function submitAnswer(answer, forcedWrong = false) {
     if (!currentWord || feedbackOpen) return;
     const correct = !forcedWrong && isCorrectAnswer(answer, currentWord);
+    const today = localDay();
+    const isFreePractice = session.mode === 'box1';
     feedbackOpen = true;
     session.answered += 1;
     if (correct) session.correct += 1;
     else session.wrong += 1;
 
-    const wasNew = !currentWord.introducedOn;
     const previousBox = currentWord.box;
+    const canGraduateNewBoxOne = previousBox === 1 && currentWord.mistakes === 0 && !currentWord.lastPromotedDay;
+    let promoted = false;
     currentWord.attempts += 1;
     currentWord.lastReviewed = new Date().toISOString();
-    if (wasNew) {
-      currentWord.introducedOn = localDay();
-      todayRecord().newLearned += 1;
-    }
     if (correct) {
       currentWord.correct += 1;
       currentWord.currentStreak += 1;
-      currentWord.box = Math.min(5, Math.max(1, currentWord.box + 1));
-      currentWord.due = addDays(localDay(), BOX_INTERVALS[currentWord.box]);
-      if (currentWord.box === 5 && !currentWord.masteredAt) currentWord.masteredAt = new Date().toISOString();
+      const eligible = (!isFreePractice || canGraduateNewBoxOne)
+        && currentWord.due
+        && currentWord.due <= today
+        && (!currentWord.blockedUntil || currentWord.blockedUntil <= today)
+        && currentWord.lastPromotedDay !== today;
+      if (eligible) {
+        currentWord.box = Math.min(5, Math.max(1, currentWord.box + 1));
+        currentWord.lastPromotedDay = today;
+        currentWord.blockedUntil = null;
+        currentWord.due = addDays(today, BOX_WAIT_DAYS[currentWord.box]);
+        promoted = true;
+        if (currentWord.box === 5 && !currentWord.masteredAt) currentWord.masteredAt = new Date().toISOString();
+      }
     } else {
       currentWord.mistakes += 1;
       currentWord.currentStreak = 0;
       currentWord.box = 1;
-      currentWord.due = addDays(localDay(), 1);
+      currentWord.due = addDays(today, 1);
+      currentWord.blockedUntil = addDays(today, 1);
       currentWord.masteredAt = null;
-      if (!reviewQueue.includes(currentWord.id)) reviewQueue.splice(Math.min(3, reviewQueue.length), 0, currentWord.id);
+      if (session.mode === 'scheduled') {
+        const repeats = session.retryCounts[currentWord.id] || 0;
+        if (repeats < 1) {
+          session.retryCounts[currentWord.id] = repeats + 1;
+          reviewQueue.splice(Math.min(3, reviewQueue.length), 0, currentWord.id);
+        }
+      }
     }
 
     const daily = todayRecord();
@@ -414,8 +574,9 @@
     if (correct) daily.correct += 1;
     else daily.wrong += 1;
     state.history.push({
-      at: new Date().toISOString(), day: localDay(), wordId: currentWord.id, term: currentWord.term,
-      answer: String(answer || ''), correct, previousBox, newBox: currentWord.box, mistakeNumber: correct ? null : currentWord.mistakes
+      at: new Date().toISOString(), day: today, wordId: currentWord.id, term: currentWord.term,
+      answer: String(answer || ''), correct, mode: session.mode, promoted, previousBox, newBox: currentWord.box,
+      mistakeNumber: correct ? null : currentWord.mistakes
     });
     if (state.history.length > 20000) state.history = state.history.slice(-20000);
     saveState();
@@ -426,9 +587,19 @@
     $('#answerFeedback').classList.toggle('wrong', !correct);
     $('#feedbackIcon').textContent = correct ? '✓' : '×';
     $('#feedbackTitle').textContent = correct ? 'درست بود!' : `این ${faNumber.format(currentWord.mistakes)}‌مین خطای تو برای این کلمه است`;
-    $('#feedbackDetail').textContent = correct
-      ? `از جعبه ${faNumber.format(previousBox || 0)} به جعبه ${faNumber.format(currentWord.box)} رفت.`
-      : `کلمه به جعبه ۱ برگشت و در همین جلسه دوباره می‌بینی.`;
+    if (!correct) {
+      $('#feedbackDetail').textContent = `کلمه در خانهٔ ۱ می‌ماند و تا فردا امکان ارتقا ندارد.`;
+    } else if (promoted) {
+      $('#feedbackDetail').textContent = previousBox === currentWord.box
+        ? `مرور خانهٔ ۵ ثبت شد؛ موعد بعدی ${faNumber.format(BOX_WAIT_DAYS[5])} روز دیگر است.`
+        : `از خانهٔ ${faNumber.format(previousBox)} به خانهٔ ${faNumber.format(currentWord.box)} رفت.`;
+    } else if (isFreePractice) {
+      $('#feedbackDetail').textContent = 'تمرین ثبت شد؛ تمرین آزاد جای کارت‌های قبلی را تغییر نمی‌دهد.';
+    } else {
+      $('#feedbackDetail').textContent = currentWord.blockedUntil && currentWord.blockedUntil > today
+        ? 'پاسخ درست ثبت شد، اما به‌دلیل خطای امروز انتقال تا فردا قفل است.'
+        : 'پاسخ درست ثبت شد، اما هنوز روز موعد انتقال این کارت نرسیده است.';
+    }
     $('#correctAnswer').textContent = currentWord.accepted.join(' / ');
     $('#wordNote').textContent = currentWord.notes || '';
     $('#wordNote').classList.toggle('hidden', !currentWord.notes);
@@ -438,11 +609,7 @@
 
   function finishSession() {
     session.completed = true;
-    const elapsed = Math.round((Date.now() - session.startedAt) / 1000);
-    const daily = todayRecord();
-    daily.sessions += 1;
-    daily.durationSeconds += elapsed;
-    saveState();
+    const elapsed = recordSessionTime();
     $('#reviewSession').classList.add('hidden');
     $('#sessionComplete').classList.remove('hidden');
     const acc = accuracy(session.correct, session.answered) || 0;
@@ -453,8 +620,20 @@
     renderGlobal();
   }
 
+  function recordSessionTime() {
+    if (!session || session.recorded) return 0;
+    const elapsed = Math.round((Date.now() - session.startedAt) / 1000);
+    const daily = todayRecord();
+    daily.sessions += 1;
+    daily.durationSeconds += elapsed;
+    session.recorded = true;
+    saveState();
+    return elapsed;
+  }
+
   function exitSession() {
     if (!session || session.answered === 0 || confirm('جلسه را متوقف می‌کنی؟ پاسخ‌های ثبت‌شده حفظ می‌شوند.')) {
+      recordSessionTime();
       window.speechSynthesis?.cancel?.();
       reviewQueue = [];
       currentWord = null;
@@ -490,12 +669,14 @@
   function importWords(text) {
     const parsed = parseWordFile(text);
     if (!parsed.length) throw new Error('هیچ کلمه‌ی معتبری در فایل پیدا نشد.');
-    const existing = new Set(state.words.map((word) => normalizeAnswer(word.term)));
+    const existing = new Set(state.words.flatMap((word) => word.accepted?.length ? word.accepted : [word.term]).map(normalizeAnswer));
     let added = 0;
     parsed.forEach((item) => {
-      if (!existing.has(normalizeAnswer(item.term))) {
+      const spellings = (item.accepted?.length ? item.accepted : [item.term]).map(normalizeAnswer).filter(Boolean);
+      const duplicate = spellings.some((spelling) => existing.has(spelling));
+      if (!duplicate) {
         state.words.push(createWord(item, state.words.length));
-        existing.add(normalizeAnswer(item.term));
+        spellings.forEach((spelling) => existing.add(spelling));
         added += 1;
       }
     });
@@ -527,10 +708,10 @@
     $('#wordCountLabel').textContent = `${faNumber.format(words.length)} کلمه`;
     $('#wordsTableBody').innerHTML = pageWords.length ? pageWords.map((word) => `<tr>
       <td class="word-cell">${escapeHtml(word.accepted.join(' / '))}</td><td>${escapeHtml(word.category)}</td>
-      <td><span class="box-badge ${word.box ? '' : 'new'}">${word.box ? `جعبه ${faNumber.format(word.box)}` : 'جدید'}</span></td>
+      <td><span class="box-badge ${word.box ? '' : 'new'}">${word.box ? `خانهٔ ${faNumber.format(word.box)}` : 'وارد نشده'}</span></td>
       <td>${faNumber.format(word.attempts)}</td><td class="mistake-count">${faNumber.format(word.mistakes)}</td>
       <td>${word.due ? formatRelativeDay(word.due) : '—'}</td>
-      <td><div class="row-menu"><button class="mini-btn listen-row" data-id="${word.id}" aria-label="تلفظ">▶</button><button class="mini-btn edit-row" data-id="${word.id}">ویرایش</button><button class="mini-btn delete delete-row" data-id="${word.id}">حذف</button></div></td>
+      <td><div class="row-menu">${word.box === 0 ? `<button class="mini-btn add-to-box-one" data-id="${word.id}" aria-label="افزودن ${escapeHtml(word.term)} به خانه ۱" title="افزودن به خانهٔ ۱">＋</button>` : ''}<button class="mini-btn listen-row" data-id="${word.id}" aria-label="تلفظ">▶</button><button class="mini-btn edit-row" data-id="${word.id}">ویرایش</button><button class="mini-btn delete delete-row" data-id="${word.id}">حذف</button></div></td>
     </tr>`).join('') : '<tr><td colspan="7" class="no-data">کلمه‌ای پیدا نشد.</td></tr>';
     $('#pageInfo').textContent = `صفحه ${faNumber.format(wordsPage)} از ${faNumber.format(totalPages)}`;
     $('#prevPage').disabled = wordsPage <= 1;
@@ -631,7 +812,7 @@
     const introduced = state.words.filter((word) => word.introducedOn).length;
     const metrics = [
       { label: 'آشنایی با فهرست', value: Math.round((introduced / total) * 100), detail: `${introduced} از ${state.words.length}` },
-      { label: 'رسیدن به جعبه ۵', value: Math.round((stats.mastered / total) * 100), detail: `${stats.mastered} کلمه` },
+      { label: 'رسیدن به خانهٔ ۵', value: Math.round((stats.mastered / total) * 100), detail: `${stats.mastered} کلمه` },
       { label: 'دقت کلی', value: accuracy(stats.correct, stats.attempts) || 0, detail: `${stats.correct} پاسخ درست` },
       { label: 'پیوستگی تمرین', value: clamp(Math.round((calculateStreak() / 30) * 100), 0, 100), detail: `${calculateStreak()} روز پیوسته از ${activeDays} روز فعال` }
     ];
@@ -650,6 +831,7 @@
     state.settings.dailyNew = clamp(Number($('#dailyNewInput').value) || 10, 1, 50);
     state.settings.dailyGoal = clamp(Number($('#dailyGoalInput').value) || 20, 5, 200);
     state.settings.voiceRate = clamp(Number($('#voiceRateInput').value) || 0.85, 0.5, 1.2);
+    ensureDailyWords();
     saveState();
     renderSettings();
     showToast('تنظیمات ذخیره شد.');
@@ -664,6 +846,7 @@
       schemaVersion: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       instructionsForAI: 'Analyse progress, recurring spelling mistakes, hard words, consistency and accuracy. Reply in Persian with a short diagnosis and a practical 7-day drill.',
+      schedulingRules: { dayBoundary: 'local midnight', box1: 'daily and unlimited free practice without promotion', box2To3Days: 2, box3To4Days: 3, box4To5Days: 7, box5ReviewDays: 14, wrongAnswer: 'return to box 1 and block promotion until next calendar day' },
       profile: {
         totalWords: state.words.length,
         introducedWords: state.words.filter((word) => word.introducedOn).length,
@@ -680,12 +863,12 @@
       boxDistribution,
       last90Days: Object.fromEntries(Object.entries(state.daily).filter(([day]) => day >= daysAgo(89)).sort(([a], [b]) => a.localeCompare(b))),
       hardestWords: hardWords(100).map((word) => ({
-        word: word.term, acceptedSpellings: word.accepted, category: word.category, box: word.box,
+        word: word.term, acceptedSpellings: word.accepted, category: word.category, box: word.box, addedSource: word.addedSource,
         attempts: word.attempts, correct: word.correct, mistakes: word.mistakes,
         accuracyPercent: accuracy(word.correct, word.attempts), mistakeRatePercent: word.attempts ? Math.round((word.mistakes / word.attempts) * 100) : 0,
-        lastReviewed: word.lastReviewed, nextDue: word.due, note: word.notes || undefined
+        lastReviewed: word.lastReviewed, nextDue: word.due, blockedUntil: word.blockedUntil, note: word.notes || undefined
       })),
-      recentMistakeEvents: state.history.filter((event) => !event.correct).slice(-250).map((event) => ({ at: event.at, word: event.term, typed: event.answer, mistakeNumber: event.mistakeNumber, previousBox: event.previousBox }))
+      recentMistakeEvents: state.history.filter((event) => !event.correct).slice(-250).map((event) => ({ at: event.at, word: event.term, typed: event.answer, mode: event.mode || 'legacy', mistakeNumber: event.mistakeNumber, previousBox: event.previousBox }))
     };
   }
 
@@ -709,10 +892,13 @@
     const parsed = JSON.parse(text);
     if (!parsed || !Array.isArray(parsed.words) || !parsed.settings || !parsed.daily) throw new Error('ساختار فایل پشتیبان معتبر نیست.');
     if (!confirm(`پشتیبان شامل ${parsed.words.length} کلمه است. داده‌های فعلی جایگزین شود؟`)) return false;
+    const sourceVersion = Number(parsed.schemaVersion) || 1;
     state = {
       ...defaultState(), ...parsed, schemaVersion: SCHEMA_VERSION,
       settings: { ...defaultState().settings, ...parsed.settings }, words: parsed.words.map(createWord), daily: parsed.daily || {}, history: Array.isArray(parsed.history) ? parsed.history : []
     };
+    if (sourceVersion < 2) migrateLegacyProgress(state);
+    ensureDailyWords();
     saveState();
     renderAll();
     return true;
@@ -723,6 +909,7 @@
     const keepWords = state.words.map((word, index) => createWord({ number: word.number || index + 1, term: word.term, accepted: word.accepted, category: word.category, notes: word.notes }));
     state = defaultState();
     state.words = keepWords;
+    ensureDailyWords();
     saveState();
     renderAll();
     showToast('پیشرفت‌ها پاک شد.');
@@ -746,9 +933,12 @@
     $$('[data-go]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.go)));
     $('#themeToggle').addEventListener('click', cycleTheme);
     $('#startReviewBtn').addEventListener('click', () => showView('review'));
-    $('#quickListenBtn').addEventListener('click', () => { showView('review'); setTimeout(() => startSession(true), 50); });
-    $('#beginSessionBtn').addEventListener('click', () => startSession(false));
-    $('#practiceExtraBtn').addEventListener('click', () => startSession(true));
+    $('#boxOnePracticeBtn').addEventListener('click', () => { showView('review'); setTimeout(() => startSession('box1'), 50); });
+    $('#addNewWordsBtn').addEventListener('click', openNewWordsDialog);
+    $('#newWordsForm').addEventListener('submit', startSelectedNewWords);
+    $$('.close-new-words-dialog').forEach((button) => button.addEventListener('click', () => $('#newWordsDialog').close()));
+    $('#beginSessionBtn').addEventListener('click', () => startSession('scheduled'));
+    $('#practiceExtraBtn').addEventListener('click', () => startSession('box1'));
     $('#exitSessionBtn').addEventListener('click', exitSession);
     $('#listenWordBtn').addEventListener('click', () => speakWord(1));
     $('#slowListenBtn').addEventListener('click', () => speakWord(0.7));
@@ -770,6 +960,7 @@
       const word = state.words.find((item) => item.id === button.dataset.id);
       if (button.classList.contains('edit-row')) openWordDialog(word);
       if (button.classList.contains('delete-row')) deleteWord(button.dataset.id);
+      if (button.classList.contains('add-to-box-one')) addWordToBoxOne(button.dataset.id);
       if (button.classList.contains('listen-row') && word) { currentWord = word; speakWord(1); }
     });
 
@@ -820,10 +1011,12 @@
 
   function init() {
     applyTheme();
+    ensureDailyWords();
+    saveState();
     bindEvents();
     const initialView = ['dashboard', 'review', 'words', 'reports', 'settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     showView(initialView);
-    window.VazheyarTest = { normalizeAnswer, isCorrectAnswer, parseWordFile, addDays, localDay, buildAnalysisReport };
+    window.VazheyarTest = { normalizeAnswer, isCorrectAnswer, parseWordFile, importWords, addDays, localDay, buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, getCurrentWord: () => currentWord };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -50,7 +50,8 @@
             <p id="heroDescription">مرورهای موعددار و لغات جدیدت را در یک جلسه‌ی کوتاه انجام بده.</p>
             <div class="hero-actions">
               <button class="btn btn-primary" id="startReviewBtn" type="button">شروع مرور امروز</button>
-              <button class="btn btn-light" id="quickListenBtn" type="button">تمرین سریع</button>
+              <button class="btn btn-light" id="boxOnePracticeBtn" type="button">تمرین آزاد خانهٔ ۱</button>
+              <button class="btn btn-light" id="addNewWordsBtn" type="button">افزودن لغات جدید</button>
             </div>
           </div>
           <div class="daily-ring" id="dailyRing" aria-label="پیشرفت هدف امروز">
@@ -59,10 +60,10 @@
         </article>
 
         <div class="stats-grid">
-          <article class="stat-card"><span class="stat-icon purple">◎</span><div><small>موعد مرور</small><strong id="dueStat">۰</strong><em>کلمه</em></div></article>
-          <article class="stat-card"><span class="stat-icon green">✓</span><div><small>دقت کلی</small><strong id="accuracyStat">—</strong><em>درصد</em></div></article>
-          <article class="stat-card"><span class="stat-icon blue">★</span><div><small>یادگرفته‌شده</small><strong id="masteredStat">۰</strong><em>جعبه ۵</em></div></article>
-          <article class="stat-card"><span class="stat-icon orange">＋</span><div><small>جدید امروز</small><strong id="newStat">۰</strong><em id="newStatGoal">از ۱۰</em></div></article>
+          <article class="stat-card tone-blue"><span class="stat-icon">◎</span><div><small>موعد مرور</small><strong id="dueStat">۰</strong><em>کلمه</em></div></article>
+          <article class="stat-card tone-teal"><span class="stat-icon">✓</span><div><small>دقت کلی</small><strong id="accuracyStat">—</strong><em>درصد</em></div></article>
+          <article class="stat-card tone-coral"><span class="stat-icon">★</span><div><small>یادگرفته‌شده</small><strong id="masteredStat">۰</strong><em>خانهٔ ۵</em></div></article>
+          <article class="stat-card tone-blue"><span class="stat-icon">＋</span><div><small>جدید امروز</small><strong id="newStat">۰</strong><em id="newStatGoal">از ۱۰</em></div></article>
         </div>
 
         <div class="dashboard-grid">
@@ -71,7 +72,7 @@
             <div id="activityChart" class="activity-chart" role="img" aria-label="نمودار فعالیت چهارده روز اخیر"></div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><h3>وضعیت جعبه‌ها</h3><p>فاصله تا تسلط کامل</p></div></div>
+            <div class="panel-head"><div><h3>وضعیت خانه‌ها</h3><p>فاصله تا تسلط کامل</p></div></div>
             <div id="boxDistribution" class="box-list"></div>
           </article>
         </div>
@@ -85,7 +86,7 @@
       <section class="view" id="view-review">
         <div id="reviewEmpty" class="empty-state hidden">
           <span class="empty-icon">✓</span><h2>مرور امروز تمام شد</h2><p>کارت موعدداری باقی نمانده است. می‌توانی لغات آزاد را تمرین کنی.</p>
-          <button class="btn btn-primary" id="practiceExtraBtn">تمرین اضافه</button>
+          <button class="btn btn-primary" id="practiceExtraBtn">تمرین آزاد خانهٔ ۱</button>
         </div>
 
         <div id="reviewSetup" class="review-setup">
@@ -147,10 +148,10 @@
         <article class="panel table-panel">
           <div class="filters-row">
             <label class="search-field"><span>⌕</span><input id="wordSearch" type="search" placeholder="جست‌وجوی کلمه یا دسته…"></label>
-            <select id="boxFilter" aria-label="فیلتر جعبه"><option value="all">همه جعبه‌ها</option><option value="0">جدید</option><option value="1">جعبه ۱</option><option value="2">جعبه ۲</option><option value="3">جعبه ۳</option><option value="4">جعبه ۴</option><option value="5">جعبه ۵</option></select>
+            <select id="boxFilter" aria-label="فیلتر خانه"><option value="all">همه خانه‌ها</option><option value="0">هنوز وارد نشده</option><option value="1">خانهٔ ۱</option><option value="2">خانهٔ ۲</option><option value="3">خانهٔ ۳</option><option value="4">خانهٔ ۴</option><option value="5">خانهٔ ۵</option></select>
             <select id="sortWords" aria-label="مرتب‌سازی"><option value="number">ترتیب اصلی</option><option value="mistakes">بیشترین خطا</option><option value="due">نزدیک‌ترین مرور</option><option value="alpha">الفبایی</option></select>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>دسته</th><th>جعبه</th><th>تلاش‌ها</th><th>خطا</th><th>مرور بعدی</th><th></th></tr></thead><tbody id="wordsTableBody"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>دسته</th><th>خانه</th><th>تلاش‌ها</th><th>خطا</th><th>مرور بعدی</th><th></th></tr></thead><tbody id="wordsTableBody"></tbody></table></div>
           <div class="pagination"><button class="btn btn-light" id="prevPage">قبلی</button><span id="pageInfo">صفحه ۱</span><button class="btn btn-light" id="nextPage">بعدی</button></div>
         </article>
       </section>
@@ -169,7 +170,7 @@
         </div>
         <article class="panel table-panel">
           <div class="panel-head"><div><h3>سخت‌ترین کلمات</h3><p>رتبه‌بندی بر اساس تعداد خطا</p></div></div>
-          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>خطا</th><th>تلاش</th><th>دقت</th><th>جعبه</th><th>آخرین مرور</th></tr></thead><tbody id="hardWordsTable"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>خطا</th><th>تلاش</th><th>دقت</th><th>خانه</th><th>آخرین مرور</th></tr></thead><tbody id="hardWordsTable"></tbody></table></div>
         </article>
       </section>
 
@@ -189,8 +190,14 @@
             <div class="stack-actions"><button class="btn btn-light" id="exportBackupBtn">دریافت پشتیبان کامل</button><button class="btn btn-light" id="restoreBackupBtn">بازیابی پشتیبان</button><button class="btn btn-danger" id="resetDataBtn">پاک‌کردن همه پیشرفت‌ها</button></div>
           </article>
           <article class="panel settings-card">
-            <h3>فاصله‌ی جعبه‌ها</h3>
-            <div class="interval-list"><span>جعبه ۱ <b>۱ روز</b></span><span>جعبه ۲ <b>۲ روز</b></span><span>جعبه ۳ <b>۴ روز</b></span><span>جعبه ۴ <b>۸ روز</b></span><span>جعبه ۵ <b>۱۶ روز</b></span></div>
+            <h3>قانون فاصلهٔ خانه‌ها</h3>
+            <div class="interval-list"><span>خانهٔ ۱ <b>روزانه</b></span><span>خانهٔ ۲ ← ۳ <b>۲ روز</b></span><span>خانهٔ ۳ ← ۴ <b>۳ روز</b></span><span>خانهٔ ۴ ← ۵ <b>۷ روز</b></span><span>مرور خانهٔ ۵ <b>۱۴ روز</b></span></div>
+            <p class="settings-note">هر کارت فقط در روز موعد می‌تواند ارتقا پیدا کند. تمرین آزاد جای کارت را تغییر نمی‌دهد.</p>
+          </article>
+          <article class="panel settings-card about-card">
+            <h3>دربارهٔ برنامه</h3>
+            <p>واژه‌یار یک جعبهٔ لایتنر آفلاین برای تمرین املای IELTS Listening است.</p>
+            <a class="repo-link" href="https://github.com/OkBayat/el2-leitner" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">⌘</span><span><strong>مشاهده در GitHub</strong><small>OkBayat/el2-leitner</small></span><b aria-hidden="true">↗</b></a>
           </article>
         </div>
       </section>
@@ -206,6 +213,18 @@
       <label class="field">دسته‌بندی<input id="wordCategoryInput"></label>
       <label class="field">یادداشت یا معنی<textarea id="wordNotesInput" rows="3"></textarea></label>
       <div class="dialog-actions"><button type="button" class="btn btn-light close-word-dialog">انصراف</button><button type="submit" class="btn btn-primary" id="saveWordBtn">ذخیره</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="newWordsDialog">
+    <form method="dialog" id="newWordsForm" class="dialog-card">
+      <div class="dialog-head"><div><h3>افزودن لغات جدید</h3><p>لغات انتخاب‌شده مستقیماً وارد خانهٔ ۱ می‌شوند.</p></div><button type="button" class="icon-btn close-new-words-dialog" aria-label="بستن">×</button></div>
+      <div class="new-words-illustration" aria-hidden="true"><span>＋</span></div>
+      <label class="field">چند لغت جدید می‌خواهی؟
+        <input id="newWordsCountInput" type="number" min="1" max="50" value="10" inputmode="numeric" required>
+      </label>
+      <p class="available-words"><strong id="availableWordsCount">۰</strong> لغت هنوز وارد جعبه نشده است.</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-light close-new-words-dialog">انصراف</button><button type="submit" class="btn btn-primary" id="startNewWordsBtn">افزودن و شروع آزمون</button></div>
     </form>
   </dialog>
 
