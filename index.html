@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8f5">
+  <title>واژه‌یار IELTS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="ناوبری اصلی">
+      <a class="brand" href="#dashboard" aria-label="واژه‌یار IELTS">
+        <span class="brand-mark" aria-hidden="true">و</span>
+        <span><strong>واژه‌یار</strong><small>IELTS Leitner</small></span>
+      </a>
+
+      <nav class="main-nav">
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> خانه</button>
+        <button class="nav-item" data-view="review"><span>◎</span> مرور امروز <b id="navDueBadge" class="nav-badge">۰</b></button>
+        <button class="nav-item" data-view="words"><span>≡</span> واژه‌ها</button>
+        <button class="nav-item" data-view="reports"><span>↗</span> گزارش رشد</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span> تنظیمات</button>
+      </nav>
+
+      <div class="sidebar-progress">
+        <div class="row-between"><span>تسلط کل</span><strong id="sideProgressText">۰٪</strong></div>
+        <div class="progress-track"><i id="sideProgressBar"></i></div>
+        <small id="sideProgressCaption">هنوز شروع نکرده‌ای</small>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="todayLabel"></p>
+          <h1 id="pageTitle">سلام محمد 👋</h1>
+        </div>
+        <div class="top-actions">
+          <span class="streak-pill" title="روزهای پیوسته"><b id="streakCount">۰</b> روز 🔥</span>
+          <button class="icon-btn" id="themeToggle" type="button" aria-label="تغییر پوسته">◐</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-dashboard" aria-labelledby="pageTitle">
+        <article class="hero-card">
+          <div>
+            <span class="hero-kicker">برنامه‌ی امروز</span>
+            <h2 id="heroTitle">آماده‌ای ده کلمه‌ی تازه یاد بگیری؟</h2>
+            <p id="heroDescription">مرورهای موعددار و لغات جدیدت را در یک جلسه‌ی کوتاه انجام بده.</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" id="startReviewBtn" type="button">شروع مرور امروز</button>
+              <button class="btn btn-light" id="quickListenBtn" type="button">تمرین سریع</button>
+            </div>
+          </div>
+          <div class="daily-ring" id="dailyRing" aria-label="پیشرفت هدف امروز">
+            <div><strong id="dailyRingValue">۰</strong><span id="dailyRingGoal">از ۲۰</span></div>
+          </div>
+        </article>
+
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon purple">◎</span><div><small>موعد مرور</small><strong id="dueStat">۰</strong><em>کلمه</em></div></article>
+          <article class="stat-card"><span class="stat-icon green">✓</span><div><small>دقت کلی</small><strong id="accuracyStat">—</strong><em>درصد</em></div></article>
+          <article class="stat-card"><span class="stat-icon blue">★</span><div><small>یادگرفته‌شده</small><strong id="masteredStat">۰</strong><em>جعبه ۵</em></div></article>
+          <article class="stat-card"><span class="stat-icon orange">＋</span><div><small>جدید امروز</small><strong id="newStat">۰</strong><em id="newStatGoal">از ۱۰</em></div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel chart-panel">
+            <div class="panel-head"><div><h3>روند ۱۴ روزه</h3><p>تعداد پاسخ‌های درست روزانه</p></div><span id="trendSummary" class="trend-chip">بدون داده</span></div>
+            <div id="activityChart" class="activity-chart" role="img" aria-label="نمودار فعالیت چهارده روز اخیر"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h3>وضعیت جعبه‌ها</h3><p>فاصله تا تسلط کامل</p></div></div>
+            <div id="boxDistribution" class="box-list"></div>
+          </article>
+        </div>
+
+        <article class="panel focus-panel">
+          <div class="panel-head"><div><h3>نیازمند توجه بیشتر</h3><p>کلماتی که بیشترین خطا را داشته‌اند</p></div><button class="text-btn" data-go="words">دیدن همه</button></div>
+          <div id="hardWordsPreview" class="word-preview-list"></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-review">
+        <div id="reviewEmpty" class="empty-state hidden">
+          <span class="empty-icon">✓</span><h2>مرور امروز تمام شد</h2><p>کارت موعدداری باقی نمانده است. می‌توانی لغات آزاد را تمرین کنی.</p>
+          <button class="btn btn-primary" id="practiceExtraBtn">تمرین اضافه</button>
+        </div>
+
+        <div id="reviewSetup" class="review-setup">
+          <article class="panel setup-card">
+            <span class="setup-icon">◎</span><h2>جلسه‌ی امروز</h2>
+            <p id="reviewSetupSummary">کارت‌های جلسه در حال آماده‌سازی هستند.</p>
+            <div class="setup-breakdown">
+              <div><strong id="setupDue">۰</strong><span>مرور موعددار</span></div>
+              <div><strong id="setupNew">۰</strong><span>لغت جدید</span></div>
+              <div><strong id="setupMinutes">۰</strong><span>دقیقه تقریبی</span></div>
+            </div>
+            <label class="field compact-field">حداکثر کارت در این جلسه
+              <select id="sessionLimit"><option value="0">همه</option><option value="10">۱۰ کارت</option><option value="20">۲۰ کارت</option><option value="30">۳۰ کارت</option></select>
+            </label>
+            <button class="btn btn-primary wide" id="beginSessionBtn">شروع جلسه</button>
+          </article>
+        </div>
+
+        <div id="reviewSession" class="review-session hidden">
+          <div class="session-bar">
+            <button class="icon-btn" id="exitSessionBtn" aria-label="خروج از جلسه">×</button>
+            <div class="session-progress"><div class="row-between"><span id="sessionCounter">کارت ۱ از ۱۰</span><span id="sessionAccuracy">دقت: —</span></div><div class="progress-track"><i id="sessionProgressBar"></i></div></div>
+          </div>
+
+          <article class="flash-card" id="flashCard">
+            <div class="card-meta"><span id="cardCategory">دسته‌بندی</span><span id="cardBox">جدید</span></div>
+            <p class="instruction" id="cardInstruction">کلمه را بشنو و املای آن را بنویس.</p>
+            <button class="listen-btn" id="listenWordBtn" aria-label="پخش تلفظ"><span>▶</span><small>پخش تلفظ</small></button>
+            <button class="text-btn replay-link" id="slowListenBtn">پخش آهسته‌تر</button>
+
+            <form id="answerForm" autocomplete="off">
+              <label class="answer-label" for="answerInput">پاسخ شما</label>
+              <input id="answerInput" class="answer-input" type="text" lang="en" dir="ltr" spellcheck="false" autocapitalize="none" placeholder="Type what you hear…">
+              <button class="btn btn-primary wide" type="submit">بررسی پاسخ</button>
+            </form>
+            <button class="text-btn dont-know" id="dontKnowBtn" type="button">نمی‌دانم</button>
+
+            <div id="answerFeedback" class="answer-feedback hidden" aria-live="polite">
+              <div class="feedback-heading"><span id="feedbackIcon">✓</span><div><strong id="feedbackTitle">درست بود!</strong><p id="feedbackDetail"></p></div></div>
+              <div class="correct-spelling" dir="ltr"><small>املای صحیح</small><strong id="correctAnswer"></strong></div>
+              <p id="wordNote" class="word-note"></p>
+              <button class="btn btn-primary wide" id="nextCardBtn" type="button">کارت بعدی</button>
+            </div>
+          </article>
+        </div>
+
+        <div id="sessionComplete" class="empty-state hidden">
+          <span class="empty-icon">★</span><h2>جلسه کامل شد!</h2><p id="completeSummary"></p>
+          <div class="completion-stats"><div><strong id="completeCorrect">۰</strong><span>درست</span></div><div><strong id="completeWrong">۰</strong><span>اشتباه</span></div><div><strong id="completeAccuracy">۰٪</strong><span>دقت</span></div></div>
+          <button class="btn btn-primary" data-go="dashboard">بازگشت به خانه</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-words">
+        <div class="section-toolbar">
+          <div><h2>بانک واژه‌ها</h2><p id="wordCountLabel">۰ کلمه</p></div>
+          <div class="toolbar-actions"><button class="btn btn-light" id="importWordsBtn">ورود فایل MD / TXT</button><button class="btn btn-primary" id="addWordBtn">افزودن کلمه</button></div>
+        </div>
+        <article class="panel table-panel">
+          <div class="filters-row">
+            <label class="search-field"><span>⌕</span><input id="wordSearch" type="search" placeholder="جست‌وجوی کلمه یا دسته…"></label>
+            <select id="boxFilter" aria-label="فیلتر جعبه"><option value="all">همه جعبه‌ها</option><option value="0">جدید</option><option value="1">جعبه ۱</option><option value="2">جعبه ۲</option><option value="3">جعبه ۳</option><option value="4">جعبه ۴</option><option value="5">جعبه ۵</option></select>
+            <select id="sortWords" aria-label="مرتب‌سازی"><option value="number">ترتیب اصلی</option><option value="mistakes">بیشترین خطا</option><option value="due">نزدیک‌ترین مرور</option><option value="alpha">الفبایی</option></select>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>دسته</th><th>جعبه</th><th>تلاش‌ها</th><th>خطا</th><th>مرور بعدی</th><th></th></tr></thead><tbody id="wordsTableBody"></tbody></table></div>
+          <div class="pagination"><button class="btn btn-light" id="prevPage">قبلی</button><span id="pageInfo">صفحه ۱</span><button class="btn btn-light" id="nextPage">بعدی</button></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-reports">
+        <div class="section-toolbar"><div><h2>گزارش رشد</h2><p>تصویر دقیق از روند یادگیری و نقاط ضعف</p></div><button class="btn btn-primary" id="exportAnalysisBtn">خروجی برای تحلیل با ChatGPT</button></div>
+        <div class="stats-grid report-stats">
+          <article class="stat-card"><div><small>کل پاسخ‌ها</small><strong id="reportAttempts">۰</strong><em>تلاش</em></div></article>
+          <article class="stat-card"><div><small>پاسخ درست</small><strong id="reportCorrect">۰</strong><em>کلمه</em></div></article>
+          <article class="stat-card"><div><small>تعداد خطا</small><strong id="reportMistakes">۰</strong><em>نیاز به مرور</em></div></article>
+          <article class="stat-card"><div><small>روزهای فعال</small><strong id="reportActiveDays">۰</strong><em>روز</em></div></article>
+        </div>
+        <div class="dashboard-grid">
+          <article class="panel chart-panel"><div class="panel-head"><div><h3>دقت روزانه</h3><p>۳۰ روز اخیر</p></div></div><div id="accuracyChart" class="line-chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h3>شاخص‌های پیشرفت</h3><p>از شروع تا امروز</p></div></div><div id="progressMetrics" class="metric-list"></div></article>
+        </div>
+        <article class="panel table-panel">
+          <div class="panel-head"><div><h3>سخت‌ترین کلمات</h3><p>رتبه‌بندی بر اساس تعداد خطا</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>کلمه</th><th>خطا</th><th>تلاش</th><th>دقت</th><th>جعبه</th><th>آخرین مرور</th></tr></thead><tbody id="hardWordsTable"></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="section-toolbar"><div><h2>تنظیمات</h2><p>برنامه‌ی مرور را با زمان خودت هماهنگ کن</p></div></div>
+        <div class="settings-grid">
+          <article class="panel settings-card">
+            <h3>برنامه‌ی روزانه</h3>
+            <label class="field">تعداد لغت جدید در روز<input id="dailyNewInput" type="number" min="1" max="50"></label>
+            <label class="field">هدف پاسخ روزانه<input id="dailyGoalInput" type="number" min="5" max="200"></label>
+            <label class="field">سرعت تلفظ<input id="voiceRateInput" type="range" min="0.5" max="1.2" step="0.05"><output id="voiceRateOutput"></output></label>
+            <button class="btn btn-primary" id="saveSettingsBtn">ذخیره تنظیمات</button>
+          </article>
+          <article class="panel settings-card">
+            <h3>داده‌ها و پشتیبان</h3>
+            <p>همه‌چیز فقط داخل همین مرورگر ذخیره می‌شود. برای جابه‌جایی دستگاه، فایل پشتیبان بگیر.</p>
+            <div class="stack-actions"><button class="btn btn-light" id="exportBackupBtn">دریافت پشتیبان کامل</button><button class="btn btn-light" id="restoreBackupBtn">بازیابی پشتیبان</button><button class="btn btn-danger" id="resetDataBtn">پاک‌کردن همه پیشرفت‌ها</button></div>
+          </article>
+          <article class="panel settings-card">
+            <h3>فاصله‌ی جعبه‌ها</h3>
+            <div class="interval-list"><span>جعبه ۱ <b>۱ روز</b></span><span>جعبه ۲ <b>۲ روز</b></span><span>جعبه ۳ <b>۴ روز</b></span><span>جعبه ۴ <b>۸ روز</b></span><span>جعبه ۵ <b>۱۶ روز</b></span></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="wordDialog">
+    <form method="dialog" id="wordForm" class="dialog-card">
+      <div class="dialog-head"><h3 id="wordDialogTitle">افزودن کلمه</h3><button type="button" class="icon-btn close-word-dialog" aria-label="بستن">×</button></div>
+      <input type="hidden" id="editingWordId">
+      <label class="field">کلمه یا عبارت انگلیسی<input id="wordTermInput" lang="en" dir="ltr" required></label>
+      <label class="field">املای جایگزین <small>با / جدا کن</small><input id="wordVariantsInput" lang="en" dir="ltr"></label>
+      <label class="field">دسته‌بندی<input id="wordCategoryInput"></label>
+      <label class="field">یادداشت یا معنی<textarea id="wordNotesInput" rows="3"></textarea></label>
+      <div class="dialog-actions"><button type="button" class="btn btn-light close-word-dialog">انصراف</button><button type="submit" class="btn btn-primary" id="saveWordBtn">ذخیره</button></div>
+    </form>
+  </dialog>
+
+  <input id="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
+  <input id="backupInput" type="file" accept=".json,application/json" hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vocabulary.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

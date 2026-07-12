@@ -1,0 +1,13 @@
+{
+  "name": "vazheyar-ielts-leitner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline-first IELTS vocabulary Leitner box with localStorage analytics",
+  "scripts": {
+    "build:data": "node tools/build-vocabulary.mjs data/IELTS_Listening_Core_1500.md vocabulary.js",
+    "test": "node --check app.js && node --check vocabulary.js && node tests/test-app.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
