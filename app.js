@@ -669,12 +669,14 @@
   function importWords(text) {
     const parsed = parseWordFile(text);
     if (!parsed.length) throw new Error('هیچ کلمه‌ی معتبری در فایل پیدا نشد.');
-    const existing = new Set(state.words.map((word) => normalizeAnswer(word.term)));
+    const existing = new Set(state.words.flatMap((word) => word.accepted?.length ? word.accepted : [word.term]).map(normalizeAnswer));
     let added = 0;
     parsed.forEach((item) => {
-      if (!existing.has(normalizeAnswer(item.term))) {
+      const spellings = (item.accepted?.length ? item.accepted : [item.term]).map(normalizeAnswer).filter(Boolean);
+      const duplicate = spellings.some((spelling) => existing.has(spelling));
+      if (!duplicate) {
         state.words.push(createWord(item, state.words.length));
-        existing.add(normalizeAnswer(item.term));
+        spellings.forEach((spelling) => existing.add(spelling));
         added += 1;
       }
     });
@@ -1014,7 +1016,7 @@
     bindEvents();
     const initialView = ['dashboard', 'review', 'words', 'reports', 'settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     showView(initialView);
-    window.VazheyarTest = { normalizeAnswer, isCorrectAnswer, parseWordFile, addDays, localDay, buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, getCurrentWord: () => currentWord };
+    window.VazheyarTest = { normalizeAnswer, isCorrectAnswer, parseWordFile, importWords, addDays, localDay, buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, getCurrentWord: () => currentWord };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
