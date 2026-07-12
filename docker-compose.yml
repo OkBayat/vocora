@@ -1,0 +1,132 @@
+name: leitner-ielts
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-leitner_ielts}
+      MYSQL_USER: ${DB_USER:-leitner_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      # MySQL is not published to the host; this lets only containers on the
+      # private Compose network run the administrative setup.
+      MYSQL_ROOT_HOST: "%"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping --host=127.0.0.1 --user=root --password=$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - app_network
+
+  phpmyadmin:
+    image: phpmyadmin:5.2-apache
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 0
+      UPLOAD_LIMIT: 16M
+    ports:
+      - "127.0.0.1:${PHPMYADMIN_PORT:-8081}:80"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "php",
+          "-r",
+          "$$s=@fsockopen('127.0.0.1',80); if(!$$s) exit(1); fclose($$s);",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app_network
+
+  db-setup:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["npm", "run", "db:setup"]
+    environment:
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-leitner_ielts}
+      DB_USER: ${DB_USER:-leitner_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_ADMIN_USER: ${DB_ADMIN_USER:-root}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:?Set DB_ADMIN_PASSWORD in .env}
+      DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-30}
+      DB_CONNECT_RETRY_MS: ${DB_CONNECT_RETRY_MS:-2000}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+    networks:
+      - app_network
+
+  app:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-leitner_ielts}
+      DB_USER: ${DB_USER:-leitner_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-leitner_session}
+      AUTH_COOKIE_MAX_AGE_MS: ${AUTH_COOKIE_MAX_AGE_MS:-604800000}
+      AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app_network
+
+volumes:
+  mysql_data:
+
+networks:
+  app_network:
+    driver: bridge

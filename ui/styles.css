@@ -54,6 +54,44 @@ body {
   line-height: 1.6;
 }
 
+.app-loading { overflow: hidden; }
+.app-loading .app-shell { visibility: hidden; }
+.boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  padding: 24px;
+}
+.boot-loader.hidden { display: none; }
+.boot-card {
+  display: flex;
+  min-width: min(100%, 290px);
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.boot-loader.failed .boot-card { flex-direction: column; }
+.boot-loader.failed p { margin: 0; color: var(--muted); font-size: 13px; }
+.boot-spinner {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 3px solid var(--primary-soft);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: boot-spin .7s linear infinite;
+}
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 
@@ -129,6 +167,15 @@ button { color: inherit; }
 .topbar h1 { margin: 0; font-size: clamp(22px, 3vw, 29px); }
 .eyebrow { margin: 0 0 3px; color: var(--muted); font-size: 13px; }
 .top-actions { display: flex; align-items: center; gap: 10px; }
+.user-email {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logout-btn { color: var(--danger); }
 .streak-pill { border: 1px solid var(--line); border-radius: 99px; background: var(--surface); padding: 8px 13px; font-size: 13px; }
 .icon-btn { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); cursor: pointer; font-size: 20px; }
 .icon-btn:hover { background: var(--surface-2); }
@@ -361,6 +408,7 @@ dialog::backdrop { background: rgba(10, 20, 15, .55); backdrop-filter: blur(3px)
   .nav-badge { position: absolute; top: 1px; right: calc(50% + 7px); margin: 0; padding: 0 5px; }
   .main-content { margin-right: 0; padding: 18px 14px 95px; }
   .topbar { margin-bottom: 18px; }
+  .user-email { display: none; }
   .streak-pill { padding: 7px 9px; }
   .hero-card { align-items: start; flex-direction: column; }
   .daily-ring { position: absolute; left: 22px; bottom: 22px; width: 91px; height: 91px; }

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f6f3">
+  <title>ثبت‌نام | واژه‌یار IELTS</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body data-auth-mode="register">
+  <main class="auth-page">
+    <section class="auth-panel" aria-labelledby="authTitle">
+      <a class="brand" href="login.html"><span class="brand-mark">و</span><span><strong>واژه‌یار</strong><small>IELTS LEITNER</small></span></a>
+      <div class="auth-copy"><h1 id="authTitle">ساخت حساب</h1><p>فقط با ایمیل و رمز عبور، تمرینت را شروع کن.</p></div>
+      <form class="auth-form" id="authForm" novalidate>
+        <label class="auth-field" for="email">ایمیل<input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" required></label>
+        <label class="auth-field" for="password">رمز عبور<input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required><span class="field-hint">حداقل ۸ کاراکتر</span></label>
+        <p class="auth-message" id="authMessage" role="alert" aria-live="polite" hidden></p>
+        <button class="auth-submit" id="authSubmit" type="submit"><span class="button-label">ساخت حساب</span></button>
+      </form>
+      <p class="auth-switch">قبلاً حساب ساخته‌ای؟ <a href="login.html">وارد شو</a></p>
+    </section>
+    <aside class="auth-visual" aria-hidden="true"><div class="visual-content"><span>شروع ساده، رشد قابل‌اندازه‌گیری</span><h2>جعبهٔ لایتنر شخصی تو همیشه همراهت است</h2><p>داده‌ها در حساب تو ذخیره می‌شوند؛ بدون وابستگی به یک مرورگر یا دستگاه.</p></div></aside>
+  </main>
+  <script src="auth.js"></script>
+</body>
+</html>

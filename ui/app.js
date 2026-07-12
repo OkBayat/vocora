@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'vazheyar-ielts-state-v1';
+  const LEGACY_STORAGE_KEY = 'vazheyar-ielts-state-v1';
   const SCHEMA_VERSION = 2;
   const BOX_WAIT_DAYS = [0, 1, 2, 3, 7, 14];
   const PAGE_SIZE = 40;
@@ -9,7 +9,11 @@
   const faDate = new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long' });
   const shortFaDate = new Intl.DateTimeFormat('fa-IR', { month: 'short', day: 'numeric' });
 
-  let state = loadState();
+  let state = null;
+  let stateRevision = 0;
+  let stateWriteBlocked = false;
+  let currentUser = null;
+  let saveQueue = Promise.resolve();
   let currentView = 'dashboard';
   let wordsPage = 1;
   let reviewQueue = [];
@@ -83,38 +87,133 @@
     };
   }
 
-  function loadState() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return defaultState();
-      const parsed = JSON.parse(saved);
-      if (!parsed || !Array.isArray(parsed.words)) throw new Error('Invalid state');
-      const sourceVersion = Number(parsed.schemaVersion) || 1;
-      const clean = {
-        ...defaultState(),
-        ...parsed,
-        schemaVersion: SCHEMA_VERSION,
-        settings: { ...defaultState().settings, ...(parsed.settings || {}) },
-        words: parsed.words.map(createWord),
-        daily: parsed.daily || {},
-        history: Array.isArray(parsed.history) ? parsed.history : []
-      };
-      if (sourceVersion < 2) migrateLegacyProgress(clean);
-      return clean;
-    } catch (error) {
-      console.error('Could not load saved data:', error);
-      return defaultState();
+  class ApiError extends Error {
+    constructor(message, status = 0, code = 'API_ERROR') {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.code = code;
     }
   }
 
-  function saveState() {
-    state.updatedAt = new Date().toISOString();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (error) {
-      showToast('فضای ذخیره‌سازی مرورگر کافی نیست؛ یک پشتیبان بگیر.', true);
-      console.error(error);
+  function redirectToLogin() {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    location.replace(`login.html?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  async function apiRequest(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: 'include',
+      ...options,
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {})
+      }
+    });
+    const raw = response.status === 204 ? '' : await response.text();
+    let payload = null;
+    if (raw) {
+      try { payload = JSON.parse(raw); }
+      catch { throw new ApiError('پاسخ سرور معتبر نبود.', response.status, 'INVALID_RESPONSE'); }
     }
+    if (response.status === 401) {
+      redirectToLogin();
+      throw new ApiError('برای ادامه دوباره وارد حساب شو.', 401, payload?.error?.code || 'UNAUTHENTICATED');
+    }
+    if (!response.ok) {
+      throw new ApiError(payload?.error?.message || payload?.message || 'ارتباط با سرور ناموفق بود.', response.status, payload?.error?.code);
+    }
+    return payload;
+  }
+
+  function hydrateState(parsed) {
+    if (!parsed || !Array.isArray(parsed.words)) throw new Error('Invalid state');
+    const defaults = defaultState();
+    const sourceVersion = Number(parsed.schemaVersion) || 1;
+    const clean = {
+      ...defaults,
+      ...parsed,
+      schemaVersion: SCHEMA_VERSION,
+      settings: { ...defaults.settings, ...(parsed.settings || {}) },
+      words: parsed.words.map(createWord),
+      daily: parsed.daily || {},
+      history: Array.isArray(parsed.history) ? parsed.history : []
+    };
+    if (sourceVersion < 2) migrateLegacyProgress(clean);
+    return clean;
+  }
+
+  async function persistState(snapshot) {
+    const response = await apiRequest('/api/state', {
+      method: 'PUT',
+      body: JSON.stringify({ state: snapshot, revision: stateRevision })
+    });
+    const nextRevision = Number(response?.revision);
+    if (!Number.isSafeInteger(nextRevision) || nextRevision <= stateRevision) {
+      throw new ApiError('نسخهٔ ذخیره‌شده از سرور معتبر نبود.', 502, 'INVALID_STATE_REVISION');
+    }
+    stateRevision = nextRevision;
+  }
+
+  async function loadState() {
+    const response = await apiRequest('/api/state');
+    const loadedRevision = Number(response?.revision ?? 0);
+    if (!Number.isSafeInteger(loadedRevision) || loadedRevision < 0) {
+      throw new ApiError('نسخهٔ دادهٔ دریافتی از سرور معتبر نبود.', 502, 'INVALID_STATE_REVISION');
+    }
+    stateRevision = loadedRevision;
+    if (response?.state) return hydrateState(response.state);
+
+    let legacyRaw = null;
+    try {
+      legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    } catch (error) {
+      console.warn('Legacy browser storage is unavailable; continuing with server storage.', error);
+    }
+    if (legacyRaw) {
+      try {
+        const migrated = hydrateState(JSON.parse(legacyRaw));
+        migrated.updatedAt = new Date().toISOString();
+        await persistState(migrated);
+        try {
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch (error) {
+          console.warn('Legacy data was migrated but its browser copy could not be removed.', error);
+        }
+        return migrated;
+      } catch (error) {
+        console.error('Could not migrate legacy browser data:', error);
+        if (error instanceof ApiError) throw error;
+      }
+    }
+
+    const fresh = defaultState();
+    await persistState(fresh);
+    return fresh;
+  }
+
+  function saveState() {
+    if (!state) return Promise.resolve();
+    if (stateWriteBlocked) return saveQueue;
+    state.updatedAt = new Date().toISOString();
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const operation = saveQueue.then(() => (
+      stateWriteBlocked ? undefined : persistState(snapshot)
+    ));
+    saveQueue = operation.catch((error) => {
+      console.error('Could not save data to the server:', error);
+      if (error.code === 'STATE_CONFLICT') {
+        stateWriteBlocked = true;
+        showToast('داده در تب یا دستگاه دیگری تغییر کرده است؛ برای جلوگیری از بازنویسی، صفحه را تازه‌سازی کن.', true);
+      } else if (error.status !== 401) {
+        showToast('ذخیره‌سازی روی سرور انجام نشد؛ اتصال اینترنت را بررسی کن.', true);
+      }
+    });
+    return operation;
+  }
+
+  function waitForSaves() {
+    return saveQueue;
   }
 
   function clamp(value, min, max) {
@@ -306,7 +405,7 @@
     currentView = name;
     $$('.view').forEach((view) => view.classList.toggle('active', view.id === `view-${name}`));
     $$('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.view === name));
-    const titles = { dashboard: 'سلام محمد 👋', review: 'مرور امروز', words: 'بانک واژه‌ها', reports: 'گزارش رشد', settings: 'تنظیمات' };
+    const titles = { dashboard: 'سلام 👋', review: 'مرور امروز', words: 'بانک واژه‌ها', reports: 'گزارش رشد', settings: 'تنظیمات' };
     $('#pageTitle').textContent = titles[name];
     if (name === 'dashboard') renderDashboard();
     if (name === 'review') renderReviewSetup();
@@ -924,6 +1023,21 @@
     toastTimer = setTimeout(() => { toast.classList.remove('show'); toast.style.background = ''; }, 3200);
   }
 
+  async function logout() {
+    const button = $('#logoutBtn');
+    button.disabled = true;
+    try {
+      await waitForSaves();
+      await apiRequest('/api/auth/logout', { method: 'POST' });
+      location.replace('login.html');
+    } catch (error) {
+      if (error.status !== 401) {
+        button.disabled = false;
+        showToast(error.message || 'خروج از حساب انجام نشد.', true);
+      }
+    }
+  }
+
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
   }
@@ -932,6 +1046,7 @@
     $$('.nav-item').forEach((button) => button.addEventListener('click', () => showView(button.dataset.view)));
     $$('[data-go]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.go)));
     $('#themeToggle').addEventListener('click', cycleTheme);
+    $('#logoutBtn').addEventListener('click', logout);
     $('#startReviewBtn').addEventListener('click', () => showView('review'));
     $('#boxOnePracticeBtn').addEventListener('click', () => { showView('review'); setTimeout(() => startSession('box1'), 50); });
     $('#addNewWordsBtn').addEventListener('click', openNewWordsDialog);
@@ -1009,16 +1124,48 @@
     if (currentView === 'settings') renderSettings();
   }
 
-  function init() {
+  async function init() {
+    const auth = await apiRequest('/api/auth/me');
+    currentUser = auth?.user || null;
+    state = await loadState();
     applyTheme();
     ensureDailyWords();
-    saveState();
     bindEvents();
+    $('#userEmail').textContent = currentUser?.email || '';
     const initialView = ['dashboard', 'review', 'words', 'reports', 'settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     showView(initialView);
-    window.VazheyarTest = { normalizeAnswer, isCorrectAnswer, parseWordFile, importWords, addDays, localDay, buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, getCurrentWord: () => currentWord };
+    document.body.classList.remove('app-loading');
+    $('#bootLoader').classList.add('hidden');
+    window.VazheyarTest = {
+      normalizeAnswer, isCorrectAnswer, parseWordFile, importWords, addDays, localDay,
+      buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, waitForSaves,
+      getCurrentWord: () => currentWord, getState: () => state, getStateRevision: () => stateRevision,
+      getCurrentUser: () => currentUser
+    };
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  function showBootError(error) {
+    console.error('Could not start Vazheyar:', error);
+    if (error?.status === 401) return;
+    const loader = $('#bootLoader');
+    loader.classList.remove('hidden');
+    loader.classList.add('failed');
+    loader.innerHTML = '<div class="boot-card"><strong>اتصال به سرور برقرار نشد</strong><p>اینترنت و اجرای بخش سرور را بررسی کن.</p><button type="button" class="btn btn-primary" id="retryBootBtn">تلاش دوباره</button></div>';
+    $('#retryBootBtn').addEventListener('click', () => location.reload());
+  }
+
+  let resolveReady;
+  let rejectReady;
+  window.VazheyarReady = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+  window.VazheyarReady.catch(() => {});
+
+  function boot() {
+    init().then(resolveReady).catch((error) => {
+      rejectReady(error);
+      showBootError(error);
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
