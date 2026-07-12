@@ -51,6 +51,7 @@
             <div class="hero-actions">
               <button class="btn btn-primary" id="startReviewBtn" type="button">شروع مرور امروز</button>
               <button class="btn btn-light" id="boxOnePracticeBtn" type="button">تمرین آزاد خانهٔ ۱</button>
+              <button class="btn btn-light" id="addNewWordsBtn" type="button">افزودن لغات جدید</button>
             </div>
           </div>
           <div class="daily-ring" id="dailyRing" aria-label="پیشرفت هدف امروز">
@@ -59,10 +60,10 @@
         </article>
 
         <div class="stats-grid">
-          <article class="stat-card"><span class="stat-icon purple">◎</span><div><small>موعد مرور</small><strong id="dueStat">۰</strong><em>کلمه</em></div></article>
-          <article class="stat-card"><span class="stat-icon green">✓</span><div><small>دقت کلی</small><strong id="accuracyStat">—</strong><em>درصد</em></div></article>
-          <article class="stat-card"><span class="stat-icon blue">★</span><div><small>یادگرفته‌شده</small><strong id="masteredStat">۰</strong><em>خانهٔ ۵</em></div></article>
-          <article class="stat-card"><span class="stat-icon orange">＋</span><div><small>جدید امروز</small><strong id="newStat">۰</strong><em id="newStatGoal">از ۱۰</em></div></article>
+          <article class="stat-card tone-blue"><span class="stat-icon">◎</span><div><small>موعد مرور</small><strong id="dueStat">۰</strong><em>کلمه</em></div></article>
+          <article class="stat-card tone-teal"><span class="stat-icon">✓</span><div><small>دقت کلی</small><strong id="accuracyStat">—</strong><em>درصد</em></div></article>
+          <article class="stat-card tone-coral"><span class="stat-icon">★</span><div><small>یادگرفته‌شده</small><strong id="masteredStat">۰</strong><em>خانهٔ ۵</em></div></article>
+          <article class="stat-card tone-blue"><span class="stat-icon">＋</span><div><small>جدید امروز</small><strong id="newStat">۰</strong><em id="newStatGoal">از ۱۰</em></div></article>
         </div>
 
         <div class="dashboard-grid">
@@ -212,6 +213,18 @@
       <label class="field">دسته‌بندی<input id="wordCategoryInput"></label>
       <label class="field">یادداشت یا معنی<textarea id="wordNotesInput" rows="3"></textarea></label>
       <div class="dialog-actions"><button type="button" class="btn btn-light close-word-dialog">انصراف</button><button type="submit" class="btn btn-primary" id="saveWordBtn">ذخیره</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="newWordsDialog">
+    <form method="dialog" id="newWordsForm" class="dialog-card">
+      <div class="dialog-head"><div><h3>افزودن لغات جدید</h3><p>لغات انتخاب‌شده مستقیماً وارد خانهٔ ۱ می‌شوند.</p></div><button type="button" class="icon-btn close-new-words-dialog" aria-label="بستن">×</button></div>
+      <div class="new-words-illustration" aria-hidden="true"><span>＋</span></div>
+      <label class="field">چند لغت جدید می‌خواهی؟
+        <input id="newWordsCountInput" type="number" min="1" max="50" value="10" inputmode="numeric" required>
+      </label>
+      <p class="available-words"><strong id="availableWordsCount">۰</strong> لغت هنوز وارد جعبه نشده است.</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-light close-new-words-dialog">انصراف</button><button type="submit" class="btn btn-primary" id="startNewWordsBtn">افزودن و شروع آزمون</button></div>
     </form>
   </dialog>
 
