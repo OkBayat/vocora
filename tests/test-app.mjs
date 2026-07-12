@@ -46,6 +46,9 @@ assert.equal(report.profile.totalAttempts, 0);
 assert.equal(document.querySelector('#dueStat').textContent, '۱۰');
 assert.equal(report.schedulingRules.box2To3Days, 2);
 assert.equal(report.schedulingRules.box3To4Days, 3);
+assert.equal(document.querySelectorAll('.stat-card.tone-blue').length, 2);
+assert.equal(document.querySelectorAll('.stat-card.tone-teal').length, 1);
+assert.equal(document.querySelectorAll('.stat-card.tone-coral').length, 1);
 
 document.querySelector('[data-view="words"]').click();
 assert.equal(document.querySelectorAll('#wordsTableBody tr').length, 40, 'Words table should paginate to 40 rows');
@@ -134,6 +137,60 @@ const legacy = {
 VazheyarTest.migrateLegacyProgress(legacy);
 assert.equal(legacy.words[0].box, 3, 'Legacy same-day extra practice must not create extra promotions');
 assert.equal(legacy.words[0].due, '2026-01-06', 'Migrated box 3 must wait three calendar days');
+
+document.querySelector('#exitSessionBtn').click();
+document.querySelector('[data-view="words"]').click();
+const addToBoxOneButton = document.querySelector('.add-to-box-one');
+assert.ok(addToBoxOneButton, 'Unintroduced words must show a small add-to-box-1 button');
+const bankAddedId = addToBoxOneButton.dataset.id;
+addToBoxOneButton.click();
+saved = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+const bankAddedWord = saved.words.find((word) => word.id === bankAddedId);
+assert.equal(bankAddedWord.box, 1);
+assert.equal(bankAddedWord.due, VazheyarTest.localDay());
+assert.equal(bankAddedWord.addedSource, 'word-bank');
+assert.equal(document.querySelector(`.add-to-box-one[data-id="${bankAddedId}"]`), null, 'The plus button must disappear after activation');
+
+document.querySelector('[data-view="dashboard"]').click();
+dom.window.Math.random = () => 0.999999;
+document.querySelector('#boxOnePracticeBtn').click();
+await new Promise((resolve) => setTimeout(resolve, 80));
+assert.equal(VazheyarTest.getCurrentWord().id, bankAddedId, 'A manually activated word must be available in box 1 practice');
+document.querySelector('#answerInput').value = VazheyarTest.getCurrentWord().term;
+document.querySelector('#answerForm button[type="submit"]').click();
+saved = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+assert.equal(saved.words.find((word) => word.id === bankAddedId).box, 2, 'A zero-mistake new word must graduate from free practice on its first correct answer');
+assert.equal(saved.history.at(-1).promoted, true);
+document.querySelector('#exitSessionBtn').click();
+dom.window.Math.random = originalRandom;
+
+document.querySelector('#addNewWordsBtn').click();
+assert.equal(document.querySelector('#newWordsDialog').open, true);
+saved = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+const selectedNewIds = saved.words.filter((word) => word.box === 0).sort((a, b) => a.number - b.number).slice(0, 3).map((word) => word.id);
+document.querySelector('#newWordsCountInput').value = '3';
+document.querySelector('#startNewWordsBtn').click();
+assert.equal(document.querySelector('#reviewSession').classList.contains('hidden'), false, 'The selected new-word test must start immediately');
+assert.equal(VazheyarTest.getCurrentWord().id, selectedNewIds[0]);
+document.querySelector('#answerInput').value = VazheyarTest.getCurrentWord().term;
+document.querySelector('#answerForm button[type="submit"]').click();
+saved = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+assert.equal(saved.words.find((word) => word.id === selectedNewIds[0]).box, 2, 'A first correct answer must move a new word directly to box 2');
+assert.equal(saved.history.at(-1).mode, 'new');
+
+document.querySelector('#nextCardBtn').click();
+assert.equal(VazheyarTest.getCurrentWord().id, selectedNewIds[1]);
+document.querySelector('#dontKnowBtn').click();
+saved = JSON.parse(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'));
+assert.equal(saved.words.find((word) => word.id === selectedNewIds[1]).box, 1, 'A failed new word must remain in box 1');
+assert.equal(saved.words.find((word) => word.id === selectedNewIds[1]).blockedUntil, VazheyarTest.addDays(VazheyarTest.localDay(), 1));
+
+document.querySelector('#nextCardBtn').click();
+assert.equal(VazheyarTest.getCurrentWord().id, selectedNewIds[2], 'A failed new word must not repeat in the initial test');
+document.querySelector('#answerInput').value = VazheyarTest.getCurrentWord().term;
+document.querySelector('#answerForm button[type="submit"]').click();
+document.querySelector('#nextCardBtn').click();
+assert.equal(document.querySelector('#sessionComplete').classList.contains('hidden'), false, 'The initial test must finish after each selected word is shown once');
 
 document.querySelector('[data-view="words"]').click();
 document.querySelector('#addWordBtn').click();
