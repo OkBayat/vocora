@@ -1,9 +1,9 @@
 {
-  "name": "vazheyar-leitner-api",
+  "name": "vocora-api",
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Express and MySQL backend for Vazheyar IELTS Leitner",
+  "description": "Express and MySQL backend for Vocora",
   "engines": {
     "node": ">=20"
   },
