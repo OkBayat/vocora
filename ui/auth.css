@@ -52,25 +52,19 @@ button, input { font: inherit; }
   right: clamp(30px, 7vw, 76px);
   display: flex;
   align-items: center;
-  gap: 11px;
   color: var(--text);
   text-decoration: none;
 }
 
-.brand-mark {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 22px;
-  font-weight: 800;
+.brand-logo {
+  display: block;
+  width: 185px;
+  max-width: min(52vw, 100%);
+  height: auto;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 38, 100, .08);
 }
-
-.brand strong, .brand small { display: block; }
-.brand small { color: var(--muted); font-size: 10px; letter-spacing: .06em; }
 .auth-copy h1 { margin: 0 0 6px; font-size: clamp(27px, 4vw, 36px); }
 .auth-copy p { margin: 0 0 28px; color: var(--muted); font-size: 14px; }
 .auth-form { display: grid; gap: 15px; }

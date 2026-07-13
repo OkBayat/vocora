@@ -137,23 +137,6 @@ button { color: inherit; }
   padding: 0 10px 28px;
 }
 
-.brand-mark {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--primary);
-  color: var(--surface);
-  font-size: 22px;
-  font-weight: 700;
-}
-
-[data-theme="dark"] .brand-mark { color: #102019; }
-.brand strong, .brand small { display: block; }
-.brand strong { font-size: 17px; }
-.brand small { color: var(--muted); font-size: 11px; letter-spacing: .08em; }
-
 .main-nav { display: grid; gap: 7px; }
 .nav-item {
   display: flex;
