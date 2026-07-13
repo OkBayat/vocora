@@ -1,11 +1,11 @@
 {
-  "name": "vazheyar-ielts-leitner",
+  "name": "vocora-ui",
   "version": "2.0.0",
   "private": true,
-  "description": "Authenticated IELTS vocabulary Leitner client backed by the Vazheyar API",
+  "description": "Authenticated vocabulary learning client for Vocora",
   "scripts": {
     "build:data": "node tools/build-vocabulary.mjs data/IELTS_Listening_Core_1500.md vocabulary.js",
-    "test": "node --check app.js && node --check auth.js && node --check vocabulary.js && node tests/test-auth.mjs && node tests/test-app.mjs"
+    "test": "node --check app.js && node --check auth.js && node --check share-story.js && node --check vocabulary.js && node tests/test-auth.mjs && node tests/test-share-story.mjs && node tests/test-app.mjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0"
