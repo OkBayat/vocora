@@ -5,7 +5,7 @@
   "description": "Authenticated vocabulary learning client for Vocora",
   "scripts": {
     "build:data": "node tools/build-vocabulary.mjs data/IELTS_Listening_Core_1500.md vocabulary.js",
-    "test": "node --check app-v2.js && node --check auth.js && node --check share-story-v2.js && node --check vocabulary.js && node tests/test-auth.mjs && node tests/test-share-story.mjs && node tests/test-app.mjs"
+    "test": "node --check app-v2.js && node --check auth.js && node --check share-story-v2.js && node --check vocabulary.js && node tests/test-branding.mjs && node tests/test-auth.mjs && node tests/test-share-story.mjs && node tests/test-app.mjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0"

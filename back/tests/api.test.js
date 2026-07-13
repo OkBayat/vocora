@@ -26,6 +26,12 @@ describe("HTTP API", () => {
 
     const script = await request(app).get("/app-v2.js").expect(200);
     assert.equal(script.headers["cache-control"], "no-cache, must-revalidate");
+
+    const logo = await request(app).get("/assets/vocora-logo.png").expect(200);
+    assert.match(logo.headers["content-type"], /^image\/png/);
+
+    const icon = await request(app).get("/assets/vocora-icon.png").expect(200);
+    assert.match(icon.headers["content-type"], /^image\/png/);
   });
 
   it("registers, authenticates, reports the user, and logs out", async () => {
