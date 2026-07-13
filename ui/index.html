@@ -7,7 +7,10 @@
   <title>واژه‌یار IELTS</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="app-loading">
+  <div class="boot-loader" id="bootLoader" role="status" aria-live="polite">
+    <div class="boot-card"><span class="boot-spinner" aria-hidden="true"></span><strong>در حال آماده‌سازی واژه‌یار…</strong></div>
+  </div>
   <div class="app-shell">
     <aside class="sidebar" aria-label="ناوبری اصلی">
       <a class="brand" href="#dashboard" aria-label="واژه‌یار IELTS">
@@ -37,8 +40,10 @@
           <h1 id="pageTitle">سلام محمد 👋</h1>
         </div>
         <div class="top-actions">
+          <span class="user-email" id="userEmail" dir="ltr"></span>
           <span class="streak-pill" title="روزهای پیوسته"><b id="streakCount">۰</b> روز 🔥</span>
           <button class="icon-btn" id="themeToggle" type="button" aria-label="تغییر پوسته">◐</button>
+          <button class="icon-btn logout-btn" id="logoutBtn" type="button" aria-label="خروج از حساب" title="خروج از حساب">↪</button>
         </div>
       </header>
 
@@ -186,7 +191,7 @@
           </article>
           <article class="panel settings-card">
             <h3>داده‌ها و پشتیبان</h3>
-            <p>همه‌چیز فقط داخل همین مرورگر ذخیره می‌شود. برای جابه‌جایی دستگاه، فایل پشتیبان بگیر.</p>
+            <p>همهٔ واژه‌ها، تمرین‌ها و گزارش‌ها به‌صورت امن در حساب تو ذخیره می‌شوند و روی دستگاه‌های دیگر نیز در دسترس‌اند.</p>
             <div class="stack-actions"><button class="btn btn-light" id="exportBackupBtn">دریافت پشتیبان کامل</button><button class="btn btn-light" id="restoreBackupBtn">بازیابی پشتیبان</button><button class="btn btn-danger" id="resetDataBtn">پاک‌کردن همه پیشرفت‌ها</button></div>
           </article>
           <article class="panel settings-card">
@@ -196,7 +201,7 @@
           </article>
           <article class="panel settings-card about-card">
             <h3>دربارهٔ برنامه</h3>
-            <p>واژه‌یار یک جعبهٔ لایتنر آفلاین برای تمرین املای IELTS Listening است.</p>
+            <p>واژه‌یار یک جعبهٔ لایتنر تحت وب برای تمرین املای IELTS Listening است.</p>
             <a class="repo-link" href="https://github.com/OkBayat/el2-leitner" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">⌘</span><span><strong>مشاهده در GitHub</strong><small>OkBayat/el2-leitner</small></span><b aria-hidden="true">↗</b></a>
           </article>
         </div>
