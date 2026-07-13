@@ -223,24 +223,27 @@ button { color: inherit; }
 .hero-kicker-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
 .hero-kicker { display: inline-block; color: #dff4ff; font-size: 12px; }
 .hero-share-btn {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid rgba(255,255,255,.28);
-  border-radius: 99px;
-  background: rgba(4, 45, 85, .2);
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 50%;
+  background: rgba(4, 45, 85, .16);
   color: #fff;
-  padding: 6px 11px;
+  padding: 0;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 650;
   backdrop-filter: blur(8px);
-  transition: transform .16s ease, background .16s ease;
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+  transition: transform .16s ease, background .16s ease, border-color .16s ease;
 }
-.hero-share-btn:hover { background: rgba(4, 45, 85, .34); transform: translateY(-1px); }
-.hero-share-btn:disabled { opacity: .58; cursor: not-allowed; transform: none; }
-.hero-share-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hero-share-btn:hover { border-color: rgba(255,255,255,.6); background: rgba(4, 45, 85, .3); transform: translateY(-1px); }
+.hero-share-btn:active { transform: scale(.96); }
+.hero-share-btn:focus-visible { outline: 3px solid rgba(255,255,255,.42); outline-offset: 3px; }
+.hero-share-btn svg { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .hero-card h2 { margin: 0 0 7px; font-size: clamp(23px, 4vw, 34px); }
 .hero-card p { max-width: 600px; margin: 0; color: #e5f6ff; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
@@ -569,7 +572,7 @@ dialog::backdrop { background: rgba(10, 20, 15, .55); backdrop-filter: blur(3px)
   .share-controls { gap: 12px; }
   .share-actions { grid-template-columns: 1fr; }
   .share-actions .copy-caption-btn { grid-column: auto; }
-  .hero-share-btn { min-height: 44px; }
+  .hero-share-btn { width: 44px; height: 44px; min-width: 44px; flex-basis: 44px; }
 }
 
 @media (max-width: 430px) {
@@ -579,7 +582,7 @@ dialog::backdrop { background: rgba(10, 20, 15, .55); backdrop-filter: blur(3px)
   .stat-card { display: block; }
   .stat-icon { margin-bottom: 8px; }
   .hero-card { min-height: 300px; }
-  .hero-kicker-row { align-items: flex-start; flex-direction: column; }
+  .hero-kicker-row { align-items: center; flex-direction: row; gap: 8px; }
   .hero-actions { padding-left: 0; flex-direction: column; align-items: stretch; }
   .daily-ring { display: none; }
   .setup-breakdown, .completion-stats { gap: 5px; }

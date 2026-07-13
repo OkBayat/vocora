@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-const source = fs.readFileSync(new URL('../share-story.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../share-story-v2.js', import.meta.url), 'utf8');
 const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only' });
 dom.window.eval(source);
 

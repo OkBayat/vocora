@@ -443,10 +443,13 @@
     const stats = totalStats();
     const dailyProgress = clamp(Math.round((today.attempts / state.settings.dailyGoal) * 100), 0, 100);
     const newRemaining = Math.max(0, state.settings.dailyNew - today.newAdded);
-    const hasShareableProgress = stats.attempts > 0;
-    $('#shareProgressBtn').disabled = !hasShareableProgress;
-    $('#shareProgressBtn').title = hasShareableProgress ? 'ساخت استوری از پیشرفت واقعی من' : 'بعد از اولین تمرین، استوری پیشرفتت آماده می‌شود';
-    $('#shareProgressLabel').textContent = hasShareableProgress ? 'ساخت استوری پیشرفت' : 'بعد از اولین تمرین';
+    const hasShareableProgress = stats.attempts > 0
+      || Object.values(state.daily || {}).some((record) => Number(record?.attempts) > 0)
+      || Number(lastCompletedSession?.answered) > 0;
+    const shareLabel = hasShareableProgress ? 'ساخت استوری از پیشرفت واقعی من' : 'ساخت استوری شروع مسیر';
+    $('#shareProgressBtn').disabled = false;
+    $('#shareProgressBtn').title = shareLabel;
+    $('#shareProgressBtn').setAttribute('aria-label', shareLabel);
     $('#dailyRing').style.setProperty('--progress', `${dailyProgress * 3.6}deg`);
     $('#dailyRingValue').textContent = faNumber.format(today.attempts);
     $('#dailyRingGoal').textContent = `از ${faNumber.format(state.settings.dailyGoal)}`;
