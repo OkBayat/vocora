@@ -39,7 +39,7 @@ services:
       PMA_ARBITRARY: 0
       UPLOAD_LIMIT: 16M
     ports:
-      - "127.0.0.1:${PHPMYADMIN_PORT:-8081}:80"
+      - "${PHPMYADMIN_HOST:-0.0.0.0}:${PHPMYADMIN_PORT:-8081}:80"
     healthcheck:
       test:
         [
@@ -108,7 +108,7 @@ services:
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
       TRUST_PROXY: ${TRUST_PROXY:-false}
     ports:
-      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
+      - "${APP_HOST:-0.0.0.0}:${APP_PORT:-3000}:3000"
     healthcheck:
       test:
         [
