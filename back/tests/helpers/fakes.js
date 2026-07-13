@@ -64,7 +64,7 @@ export class FakePasswordHasher {
   }
 }
 
-export function createTestContext(environmentOverrides = {}) {
+export function createTestContext(environmentOverrides = {}, appOverrides = {}) {
   const config = loadConfig({
     NODE_ENV: "test",
     JWT_SECRET: "test-secret-at-least-thirty-two-characters",
@@ -86,7 +86,8 @@ export function createTestContext(environmentOverrides = {}) {
     container,
     staticDirectory: false,
     nodeEnv: "test",
-    logger: { error() {} }
+    logger: { error() {} },
+    ...appOverrides
   });
 
   return { app, config, container, userRepository, learningStateRepository };

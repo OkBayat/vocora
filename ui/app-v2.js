@@ -19,8 +19,15 @@
   let reviewQueue = [];
   let currentWord = null;
   let session = null;
+  let lastCompletedSession = null;
   let feedbackOpen = false;
   let toastTimer = null;
+  let shareMoments = [];
+  let selectedShareMoment = null;
+  let preparedStoryFile = null;
+  let shareRenderFailed = false;
+  let shareRenderToken = 0;
+  let shareReadyPromise = Promise.resolve();
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -436,6 +443,13 @@
     const stats = totalStats();
     const dailyProgress = clamp(Math.round((today.attempts / state.settings.dailyGoal) * 100), 0, 100);
     const newRemaining = Math.max(0, state.settings.dailyNew - today.newAdded);
+    const hasShareableProgress = stats.attempts > 0
+      || Object.values(state.daily || {}).some((record) => Number(record?.attempts) > 0)
+      || Number(lastCompletedSession?.answered) > 0;
+    const shareLabel = hasShareableProgress ? 'ساخت استوری از پیشرفت واقعی من' : 'ساخت استوری شروع مسیر';
+    $('#shareProgressBtn').disabled = false;
+    $('#shareProgressBtn').title = shareLabel;
+    $('#shareProgressBtn').setAttribute('aria-label', shareLabel);
     $('#dailyRing').style.setProperty('--progress', `${dailyProgress * 3.6}deg`);
     $('#dailyRingValue').textContent = faNumber.format(today.attempts);
     $('#dailyRingGoal').textContent = `از ${faNumber.format(state.settings.dailyGoal)}`;
@@ -716,6 +730,12 @@
     $('#completeWrong').textContent = faNumber.format(session.wrong);
     $('#completeAccuracy').textContent = `${faNumber.format(acc)}٪`;
     $('#completeSummary').textContent = `در ${faNumber.format(Math.max(1, Math.ceil(elapsed / 60)))} دقیقه، ${faNumber.format(session.answered)} پاسخ ثبت کردی.`;
+    lastCompletedSession = {
+      answered: session.answered,
+      correct: session.correct,
+      wrong: session.wrong,
+      durationMinutes: Math.max(1, Math.ceil(elapsed / 60))
+    };
     renderGlobal();
   }
 
@@ -941,7 +961,7 @@
     const activeDays = Object.entries(state.daily).filter(([, value]) => value.attempts > 0);
     const boxDistribution = Object.fromEntries([0, 1, 2, 3, 4, 5].map((box) => [box === 0 ? 'new' : `box_${box}`, state.words.filter((word) => word.box === box).length]));
     return {
-      reportType: 'Vazheyar IELTS Learning Analysis',
+      reportType: 'Vocora Learning Analysis',
       schemaVersion: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       instructionsForAI: 'Analyse progress, recurring spelling mistakes, hard words, consistency and accuracy. Reply in Persian with a short diagnosis and a practical 7-day drill.',
@@ -985,6 +1005,147 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function shareMomentIcon(kind) {
+    return ({ session: '✓', daily: '↗', streak: '∞', mastery: '★', momentum: '＋', journey: '○' })[kind] || '↗';
+  }
+
+  function renderShareMomentTabs() {
+    $('#shareMomentTabs').innerHTML = shareMoments.map((moment) => `
+      <button class="share-moment-tab" id="share-tab-${escapeHtml(moment.id)}" type="button" role="tab"
+        data-share-moment="${escapeHtml(moment.id)}" aria-controls="storyPreviewPanel" aria-selected="${moment.id === selectedShareMoment?.id}" tabindex="${moment.id === selectedShareMoment?.id ? '0' : '-1'}">
+        <span class="share-moment-icon" aria-hidden="true">${shareMomentIcon(moment.kind)}</span>
+        <span><strong>${escapeHtml(moment.tabLabel)}</strong><small>${moment.recommended ? 'پیشنهاد Vocora' : escapeHtml(moment.unit)}</small></span>
+      </button>
+    `).join('');
+  }
+
+  function setShareStatus(message = '', tone = '') {
+    const status = $('#shareStatus');
+    status.textContent = message;
+    status.dataset.tone = tone;
+    status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  }
+
+  function setShareGenerating(generating) {
+    const nativeSupported = window.VocoraShare.supportsFileShare(navigator, selectedShareMoment);
+    $('#nativeShareBtn').disabled = generating;
+    $('#downloadStoryBtn').disabled = generating;
+    $('#downloadStoryBtn').classList.toggle('hidden', !nativeSupported);
+    $('#nativeShareBtn').classList.toggle('busy', generating);
+    $('#nativeShareBtn span').textContent = generating
+      ? 'در حال ساخت تصویر…'
+      : nativeSupported ? 'اشتراک‌گذاری' : 'ذخیره برای اشتراک';
+  }
+
+  function selectShareMoment(id) {
+    const moment = shareMoments.find((item) => item.id === id) || shareMoments[0];
+    if (!moment) return Promise.resolve();
+    selectedShareMoment = moment;
+    preparedStoryFile = null;
+    shareRenderFailed = false;
+    renderShareMomentTabs();
+    $('#storyPreviewPanel').setAttribute('aria-labelledby', `share-tab-${moment.id}`);
+    $('#shareMomentTitle').textContent = moment.title;
+    $('#shareMomentSummary').textContent = moment.message;
+    const accessibleDescription = `${moment.title}. ${moment.value} ${moment.unit}. ${moment.stats.map((item) => `${item.value} ${item.label}`).join('، ')}.`;
+    $('#storyCanvas').setAttribute('aria-label', accessibleDescription);
+    setShareStatus('در حال ساخت پیش‌نمایش استوری…', 'info');
+    setShareGenerating(true);
+    const token = ++shareRenderToken;
+    shareReadyPromise = window.VocoraShare.renderStory($('#storyCanvas'), moment)
+      .then(() => window.VocoraShare.storyFile($('#storyCanvas'), moment))
+      .then((file) => {
+        if (token !== shareRenderToken) return null;
+        preparedStoryFile = file;
+        setShareGenerating(false);
+        setShareStatus('تصویر استوری آماده است.', 'success');
+        return file;
+      })
+      .catch((error) => {
+        if (token !== shareRenderToken) return null;
+        shareRenderFailed = true;
+        $('#nativeShareBtn').disabled = false;
+        $('#downloadStoryBtn').disabled = true;
+        $('#nativeShareBtn').classList.remove('busy');
+        $('#nativeShareBtn span').textContent = 'تلاش دوباره';
+        setShareStatus(error.message || 'ساخت تصویر در این مرورگر انجام نشد.', 'error');
+        return null;
+      });
+    return shareReadyPromise;
+  }
+
+  function openShareDialog(source = 'dashboard') {
+    if (!window.VocoraShare) return showToast('ابزار ساخت استوری بارگذاری نشد؛ صفحه را تازه‌سازی کن.', true);
+    shareMoments = window.VocoraShare.buildShareMoments(state, {
+      today: localDay(),
+      session: source === 'session' ? lastCompletedSession : null
+    });
+    selectedShareMoment = shareMoments[0] || null;
+    const nativeSupported = window.VocoraShare.supportsFileShare(navigator, selectedShareMoment);
+    $('#shareSupportNote').textContent = nativeSupported
+      ? 'در موبایل، برنامهٔ مقصد را از Share Sheet دستگاه انتخاب کن.'
+      : 'مرورگر تو ارسال مستقیم فایل را ندارد؛ تصویر ذخیره می‌شود تا آن را در شبکهٔ دلخواه بارگذاری کنی.';
+    const dialog = $('#shareDialog');
+    if (!dialog.open) dialog.showModal();
+    setShareStatus();
+    selectShareMoment(selectedShareMoment?.id);
+  }
+
+  async function shareSelectedStory() {
+    if (!selectedShareMoment || !preparedStoryFile) {
+      if (selectedShareMoment && shareRenderFailed) {
+        selectShareMoment(selectedShareMoment.id);
+        return;
+      }
+      setShareStatus('چند لحظه صبر کن تا تصویر آماده شود.', 'info');
+      return;
+    }
+    const button = $('#nativeShareBtn');
+    button.disabled = true;
+    button.classList.add('busy');
+    try {
+      const result = await window.VocoraShare.shareStory($('#storyCanvas'), selectedShareMoment, navigator, preparedStoryFile);
+      if (result.status === 'shared') {
+        $('#shareDialog').close();
+        showToast('Share Sheet باز شد؛ شبکهٔ اجتماعی موردنظرت را انتخاب کن.');
+      } else if (result.status === 'unsupported') {
+        await window.VocoraShare.downloadStory($('#storyCanvas'), selectedShareMoment, document, result.file);
+        setShareStatus('تصویر ۹:۱۶ ذخیره شد؛ حالا آن را در Story شبکهٔ دلخواهت انتخاب کن.', 'success');
+      } else if (result.status === 'cancelled') {
+        setShareStatus('اشتراک‌گذاری لغو شد؛ تصویر همچنان آماده است.', 'info');
+      }
+    } catch (error) {
+      setShareStatus(error.message || 'اشتراک‌گذاری انجام نشد؛ دوباره تلاش کن.', 'error');
+    } finally {
+      button.disabled = false;
+      button.classList.remove('busy');
+    }
+  }
+
+  async function downloadSelectedStory() {
+    if (!selectedShareMoment || !preparedStoryFile) return setShareStatus('چند لحظه صبر کن تا تصویر آماده شود.', 'info');
+    const button = $('#downloadStoryBtn');
+    button.disabled = true;
+    try {
+      await window.VocoraShare.downloadStory($('#storyCanvas'), selectedShareMoment, document, preparedStoryFile);
+      setShareStatus('تصویر استوری با اندازهٔ ۱۰۸۰×۱۹۲۰ ذخیره شد.', 'success');
+    } catch (error) {
+      setShareStatus(error.message || 'ذخیرهٔ تصویر انجام نشد.', 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function copySelectedCaption() {
+    if (!selectedShareMoment) return;
+    try {
+      await window.VocoraShare.copyCaption(selectedShareMoment);
+      setShareStatus('متن پیشنهادی کپی شد.', 'success');
+    } catch (error) {
+      setShareStatus(error.message || 'کپی متن انجام نشد.', 'error');
+    }
   }
 
   function restoreBackup(text) {
@@ -1047,6 +1208,32 @@
     $$('[data-go]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.go)));
     $('#themeToggle').addEventListener('click', cycleTheme);
     $('#logoutBtn').addEventListener('click', logout);
+    $('#shareProgressBtn').addEventListener('click', () => openShareDialog('dashboard'));
+    $('#shareSessionBtn').addEventListener('click', () => openShareDialog('session'));
+    $$('.close-share-dialog').forEach((button) => button.addEventListener('click', () => $('#shareDialog').close()));
+    $('#shareMomentTabs').addEventListener('click', (event) => {
+      const tab = event.target.closest('[data-share-moment]');
+      if (tab) {
+        const id = tab.dataset.shareMoment;
+        selectShareMoment(id);
+        $(`[data-share-moment="${id}"]`, $('#shareMomentTabs'))?.focus();
+      }
+    });
+    $('#shareMomentTabs').addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const tabs = $$('.share-moment-tab', $('#shareMomentTabs'));
+      if (!tabs.length) return;
+      const currentIndex = Math.max(0, tabs.indexOf(document.activeElement));
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+        : event.key === 'ArrowLeft' ? (currentIndex + 1) % tabs.length : (currentIndex - 1 + tabs.length) % tabs.length;
+      event.preventDefault();
+      const id = tabs[nextIndex].dataset.shareMoment;
+      selectShareMoment(id);
+      $(`[data-share-moment="${id}"]`, $('#shareMomentTabs'))?.focus();
+    });
+    $('#nativeShareBtn').addEventListener('click', shareSelectedStory);
+    $('#downloadStoryBtn').addEventListener('click', downloadSelectedStory);
+    $('#copyCaptionBtn').addEventListener('click', copySelectedCaption);
     $('#startReviewBtn').addEventListener('click', () => showView('review'));
     $('#boxOnePracticeBtn').addEventListener('click', () => { showView('review'); setTimeout(() => startSession('box1'), 50); });
     $('#addNewWordsBtn').addEventListener('click', openNewWordsDialog);
@@ -1092,8 +1279,8 @@
 
     $('#voiceRateInput').addEventListener('input', () => { $('#voiceRateOutput').textContent = `${$('#voiceRateInput').value}×`; });
     $('#saveSettingsBtn').addEventListener('click', saveSettings);
-    $('#exportAnalysisBtn').addEventListener('click', () => { downloadJson(buildAnalysisReport(), `vazheyar-analysis-${localDay()}.json`); showToast('خروجی تحلیل آماده شد؛ همین فایل را برای من بفرست.'); });
-    $('#exportBackupBtn').addEventListener('click', () => { downloadJson(state, `vazheyar-backup-${localDay()}.json`); showToast('پشتیبان کامل دریافت شد.'); });
+    $('#exportAnalysisBtn').addEventListener('click', () => { downloadJson(buildAnalysisReport(), `vocora-analysis-${localDay()}.json`); showToast('خروجی تحلیل آماده شد؛ همین فایل را برای من بفرست.'); });
+    $('#exportBackupBtn').addEventListener('click', () => { downloadJson(state, `vocora-backup-${localDay()}.json`); showToast('پشتیبان کامل دریافت شد.'); });
     $('#restoreBackupBtn').addEventListener('click', () => $('#backupInput').click());
     $('#backupInput').addEventListener('change', async (event) => {
       const file = event.target.files[0];
@@ -1140,12 +1327,13 @@
       normalizeAnswer, isCorrectAnswer, parseWordFile, importWords, addDays, localDay,
       buildAnalysisReport, migrateLegacyProgress, weightedBoxOneBatch, waitForSaves,
       getCurrentWord: () => currentWord, getState: () => state, getStateRevision: () => stateRevision,
-      getCurrentUser: () => currentUser
+      getCurrentUser: () => currentUser, openShareDialog, waitForShareReady: () => shareReadyPromise,
+      getShareMoments: () => shareMoments, getSelectedShareMoment: () => selectedShareMoment
     };
   }
 
   function showBootError(error) {
-    console.error('Could not start Vazheyar:', error);
+    console.error('Could not start Vocora:', error);
     if (error?.status === 401) return;
     const loader = $('#bootLoader');
     loader.classList.remove('hidden');

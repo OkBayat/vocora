@@ -2,11 +2,12 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f6f8f5">
   <title>واژه‌یار IELTS</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" sizes="any">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles-v2.css">
   <style>
     .brand-logo {
       display: block;
@@ -22,7 +23,7 @@
 </head>
 <body class="app-loading">
   <div class="boot-loader" id="bootLoader" role="status" aria-live="polite">
-    <div class="boot-card"><span class="boot-spinner" aria-hidden="true"></span><strong>در حال آماده‌سازی واژه‌یار…</strong></div>
+    <div class="boot-card"><span class="boot-spinner" aria-hidden="true"></span><strong>در حال آماده‌سازی Vocora…</strong></div>
   </div>
   <div class="app-shell">
     <aside class="sidebar" aria-label="ناوبری اصلی">
@@ -62,7 +63,12 @@
       <section class="view active" id="view-dashboard" aria-labelledby="pageTitle">
         <article class="hero-card">
           <div>
-            <span class="hero-kicker">برنامه‌ی امروز</span>
+            <div class="hero-kicker-row">
+              <span class="hero-kicker">برنامه‌ی امروز</span>
+              <button class="hero-share-btn" id="shareProgressBtn" type="button" aria-label="ساخت استوری شروع مسیر" title="ساخت استوری شروع مسیر">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+              </button>
+            </div>
             <h2 id="heroTitle">آماده‌ای ده کلمه‌ی تازه یاد بگیری؟</h2>
             <p id="heroDescription">مرورهای موعددار و لغات جدیدت را در یک جلسه‌ی کوتاه انجام بده.</p>
             <div class="hero-actions">
@@ -153,7 +159,10 @@
         <div id="sessionComplete" class="empty-state hidden">
           <span class="empty-icon">★</span><h2>جلسه کامل شد!</h2><p id="completeSummary"></p>
           <div class="completion-stats"><div><strong id="completeCorrect">۰</strong><span>درست</span></div><div><strong id="completeWrong">۰</strong><span>اشتباه</span></div><div><strong id="completeAccuracy">۰٪</strong><span>دقت</span></div></div>
-          <button class="btn btn-primary" data-go="dashboard">بازگشت به خانه</button>
+          <div class="completion-actions">
+            <button class="btn btn-primary" id="shareSessionBtn" type="button">ساخت استوری نتیجه</button>
+            <button class="btn btn-light" data-go="dashboard" type="button">بازگشت به خانه</button>
+          </div>
         </div>
       </section>
 
@@ -245,11 +254,60 @@
     </form>
   </dialog>
 
+  <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareDialogTitle" aria-describedby="shareDialogDescription">
+    <div class="share-sheet">
+      <div class="dialog-head share-dialog-head">
+        <div>
+          <span class="share-overline">STORY STUDIO</span>
+          <h3 id="shareDialogTitle">داستان پیشرفت تو</h3>
+          <p id="shareDialogDescription">یک تصویر استاندارد ۹:۱۶ برای استوری بساز و با موبایل به اشتراک بگذار.</p>
+        </div>
+        <button type="button" class="icon-btn close-share-dialog" aria-label="بستن پنجرهٔ اشتراک">×</button>
+      </div>
+
+      <div class="share-layout">
+        <div class="story-preview-column">
+          <div class="story-preview-meta"><span>پیش‌نمایش</span><b>۱۰۸۰ × ۱۹۲۰</b></div>
+          <div class="story-preview-frame" id="storyPreviewPanel" role="tabpanel">
+            <canvas id="storyCanvas" width="1080" height="1920" role="img" aria-label="پیش‌نمایش استوری پیشرفت Vocora"></canvas>
+          </div>
+          <p class="story-safe-note"><span aria-hidden="true">✓</span> متن‌ها داخل محدودهٔ امن Instagram Story قرار دارند.</p>
+        </div>
+
+        <div class="share-controls">
+          <div>
+            <span class="share-label">چه چیزی را جشن می‌گیری؟</span>
+            <div id="shareMomentTabs" class="share-moment-tabs" role="tablist" aria-label="انتخاب نوع استوری"></div>
+          </div>
+          <div class="share-copy-card">
+            <span class="share-copy-icon" aria-hidden="true">↗</span>
+            <div><strong id="shareMomentTitle">پیشرفت امروز</strong><p id="shareMomentSummary"></p></div>
+          </div>
+          <div class="share-privacy" id="sharePrivacyNote">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z"/></svg>
+            <p><strong>خصوصی، به‌صورت پیش‌فرض</strong><span>ایمیل، پاسخ‌های تایپ‌شده، نام واژه‌ها و جزئیات خطاها هرگز روی تصویر قرار نمی‌گیرند.</span></p>
+          </div>
+          <p class="share-support-note" id="shareSupportNote"></p>
+          <div id="shareStatus" class="share-status" role="status" aria-live="polite"></div>
+          <div class="share-actions">
+            <button class="btn btn-primary wide share-primary" id="nativeShareBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+              <span>اشتراک‌گذاری</span>
+            </button>
+            <button class="btn btn-light wide" id="downloadStoryBtn" type="button">ذخیرهٔ تصویر PNG</button>
+            <button class="text-btn copy-caption-btn" id="copyCaptionBtn" type="button">کپی متن پیشنهادی</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <input id="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" hidden>
   <input id="backupInput" type="file" accept=".json,application/json" hidden>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="vocabulary.js"></script>
-  <script src="app.js"></script>
+  <script src="share-story-v2.js"></script>
+  <script src="app-v2.js"></script>
 </body>
 </html>

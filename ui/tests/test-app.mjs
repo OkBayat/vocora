@@ -3,15 +3,52 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 const root = new URL('../', import.meta.url);
-const html = fs.readFileSync(new URL('index.html', root), 'utf8')
+const rawHtml = fs.readFileSync(new URL('index.html', root), 'utf8');
+const html = rawHtml
   .replace(/<script src="vocabulary\.js"><\/script>/, '')
-  .replace(/<script src="app\.js"><\/script>/, '');
+  .replace(/<script src="share-story-v2\.js"><\/script>/, '')
+  .replace(/<script src="app-v2\.js"><\/script>/, '');
 const vocabulary = fs.readFileSync(new URL('vocabulary.js', root), 'utf8');
-const app = fs.readFileSync(new URL('app.js', root), 'utf8');
+const shareStory = fs.readFileSync(new URL('share-story-v2.js', root), 'utf8');
+const app = fs.readFileSync(new URL('app-v2.js', root), 'utf8');
 const sourceWords = fs.readFileSync(new URL('../data/IELTS_Listening_Core_1500.md', import.meta.url), 'utf8');
 let serverState = null;
 let serverRevision = 0;
 const apiCalls = [];
+const sharedPayloads = [];
+
+function installShareBrowserMocks(window) {
+  const context = {
+    globalAlpha: 1,
+    beginPath() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, closePath() {},
+    arc() {}, stroke() {}, fill() {}, save() {}, restore() {}, fillRect() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+    measureText(text) { return { width: String(text).length * 22 }; },
+    fillText() {}
+  };
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value() { return context; }
+  });
+  Object.defineProperty(window.HTMLCanvasElement.prototype, 'toBlob', {
+    configurable: true,
+    value(callback, type) { callback(new window.Blob(['png'], { type })); }
+  });
+  window.URL.createObjectURL = () => 'blob:vocora-story';
+  window.URL.revokeObjectURL = () => {};
+  Object.defineProperty(window.navigator, 'canShare', {
+    configurable: true,
+    value: ({ files }) => files?.length === 1 && files[0].type === 'image/png'
+  });
+  Object.defineProperty(window.navigator, 'share', {
+    configurable: true,
+    value: async (payload) => { sharedPayloads.push(payload); }
+  });
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value: { async writeText() {} }
+  });
+}
 
 function mockResponse(status, payload = null) {
   return {
@@ -26,6 +63,7 @@ const dom = new JSDOM(html, {
   runScripts: 'outside-only',
   pretendToBeVisual: true,
   beforeParse(window) {
+    installShareBrowserMocks(window);
     window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     window.scrollTo = () => {};
     window.confirm = () => true;
@@ -54,6 +92,7 @@ const dom = new JSDOM(html, {
 });
 
 dom.window.eval(vocabulary);
+dom.window.eval(shareStory);
 dom.window.eval(app);
 await dom.window.VazheyarReady;
 
@@ -65,6 +104,9 @@ const readServerState = async () => {
 };
 const originalRandom = dom.window.Math.random;
 assert.ok(VazheyarTest, 'Test API should be exposed');
+assert.match(rawHtml, /href="styles-v2\.css"/, 'The release must use a fresh stylesheet URL instead of a stale CDN object');
+assert.match(rawHtml, /src="share-story-v2\.js"/, 'The share runtime must use a fresh CDN URL');
+assert.match(rawHtml, /src="app-v2\.js"/, 'The app runtime must use a fresh CDN URL');
 assert.equal(document.querySelector('#userEmail').textContent, 'learner@example.com');
 assert.equal(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'), null, 'Normal learning data must not be written to localStorage');
 assert.ok(apiCalls.some((call) => call.path === '/api/state' && call.method === 'PUT'), 'Initial state must be persisted through the API');
@@ -86,6 +128,17 @@ assert.equal(report.schedulingRules.box3To4Days, 3);
 assert.equal(document.querySelectorAll('.stat-card.tone-blue').length, 2);
 assert.equal(document.querySelectorAll('.stat-card.tone-teal').length, 1);
 assert.equal(document.querySelectorAll('.stat-card.tone-coral').length, 1);
+
+const shareProgressButton = document.querySelector('#shareProgressBtn');
+assert.equal(shareProgressButton.disabled, false, 'The share control must always respond, including for an honest journey-start story');
+assert.equal(shareProgressButton.querySelector('span'), null, 'The compact hero control must be icon-only');
+assert.equal(shareProgressButton.querySelector('svg').getAttribute('width'), '20', 'The icon needs an intrinsic width even if stale CSS is present');
+assert.match(shareProgressButton.getAttribute('aria-label'), /شروع مسیر/);
+shareProgressButton.click();
+await VazheyarTest.waitForShareReady();
+assert.equal(document.querySelector('#shareDialog').open, true, 'Zero-progress sharing must open Story Studio instead of looking broken');
+assert.equal(VazheyarTest.getSelectedShareMoment().kind, 'journey');
+document.querySelector('.close-share-dialog').click();
 
 document.querySelector('[data-view="words"]').click();
 assert.equal(document.querySelectorAll('#wordsTableBody tr').length, 40, 'Words table should paginate to 40 rows');
@@ -140,6 +193,28 @@ assert.equal(saved.words.find((word) => word.id === mistakenId).box, 1, 'A later
 assert.equal(saved.history.at(-1).promoted, false);
 
 document.querySelector('#exitSessionBtn').click();
+await VazheyarTest.waitForSaves();
+assert.equal(document.querySelector('#shareProgressBtn').disabled, false, 'Progress sharing unlocks after real practice');
+assert.match(document.querySelector('#shareProgressBtn').getAttribute('aria-label'), /پیشرفت واقعی/);
+const stateBeforeOpeningStory = JSON.stringify(VazheyarTest.getState());
+const revisionBeforeOpeningStory = VazheyarTest.getStateRevision();
+document.querySelector('#shareProgressBtn').click();
+await VazheyarTest.waitForShareReady();
+assert.equal(document.querySelector('#shareDialog').open, true, 'Home share button must open Story Studio');
+assert.equal(document.querySelector('#storyCanvas').width, 1080);
+assert.equal(document.querySelector('#storyCanvas').height, 1920);
+assert.equal(VazheyarTest.getSelectedShareMoment().kind, 'daily');
+assert.equal(document.querySelector('#storyPreviewPanel').getAttribute('aria-labelledby'), 'share-tab-daily');
+assert.match(document.querySelector('#shareStatus').textContent, /آماده است/);
+assert.equal(JSON.stringify(VazheyarTest.getShareMoments()).includes('learner@example.com'), false, 'Public story data must not expose email');
+assert.equal(JSON.stringify(VazheyarTest.getState()), stateBeforeOpeningStory, 'Opening Story Studio must not mutate learning state');
+assert.equal(VazheyarTest.getStateRevision(), revisionBeforeOpeningStory, 'Opening Story Studio must not write to the database');
+document.querySelector('#copyCaptionBtn').click();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.match(document.querySelector('#shareStatus').textContent, /کپی شد/, 'In-dialog actions need visible feedback above the modal backdrop');
+document.querySelector('.close-share-dialog').click();
+assert.equal(document.querySelector('#shareDialog').open, false);
+
 dom.window.Math.random = () => 0;
 document.querySelector('#boxOnePracticeBtn').click();
 await new Promise((resolve) => setTimeout(resolve, 80));
@@ -229,6 +304,20 @@ document.querySelector('#answerForm button[type="submit"]').click();
 document.querySelector('#nextCardBtn').click();
 assert.equal(document.querySelector('#sessionComplete').classList.contains('hidden'), false, 'The initial test must finish after each selected word is shown once');
 
+await VazheyarTest.waitForSaves();
+const revisionBeforeSessionShare = VazheyarTest.getStateRevision();
+document.querySelector('#shareSessionBtn').click();
+await VazheyarTest.waitForShareReady();
+assert.equal(VazheyarTest.getSelectedShareMoment().kind, 'session', 'A completed session must be the recommended story');
+assert.equal(document.querySelector('#nativeShareBtn').disabled, false);
+document.querySelector('#nativeShareBtn').click();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(sharedPayloads.length, 1, 'Native mobile share must receive one story payload');
+assert.equal(sharedPayloads[0].files.length, 1);
+assert.equal(sharedPayloads[0].files[0].type, 'image/png');
+assert.equal(document.querySelector('#shareDialog').open, false, 'Successful native share should close Story Studio');
+assert.equal(VazheyarTest.getStateRevision(), revisionBeforeSessionShare, 'Sharing must not write learning state');
+
 document.querySelector('[data-view="words"]').click();
 document.querySelector('#addWordBtn').click();
 document.querySelector('#wordTermInput').value = 'accommodation';
@@ -296,6 +385,7 @@ const migrationDom = new JSDOM(html, {
   runScripts: 'outside-only',
   pretendToBeVisual: true,
   beforeParse(window) {
+    installShareBrowserMocks(window);
     window.localStorage.setItem('vazheyar-ielts-state-v1', JSON.stringify(legacyState));
     window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     window.scrollTo = () => {};
@@ -320,6 +410,7 @@ const migrationDom = new JSDOM(html, {
   }
 });
 migrationDom.window.eval(vocabulary);
+migrationDom.window.eval(shareStory);
 migrationDom.window.eval(app);
 await migrationDom.window.VazheyarReady;
 await migrationDom.window.VazheyarTest.waitForSaves();
@@ -333,6 +424,7 @@ const blockedStorageDom = new JSDOM(html, {
   runScripts: 'outside-only',
   pretendToBeVisual: true,
   beforeParse(window) {
+    installShareBrowserMocks(window);
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       get() { throw new Error('Storage access blocked'); }
@@ -361,6 +453,7 @@ const blockedStorageDom = new JSDOM(html, {
   }
 });
 blockedStorageDom.window.eval(vocabulary);
+blockedStorageDom.window.eval(shareStory);
 blockedStorageDom.window.eval(app);
 await blockedStorageDom.window.VazheyarReady;
 await blockedStorageDom.window.VazheyarTest.waitForSaves();

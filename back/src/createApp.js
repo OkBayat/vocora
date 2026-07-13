@@ -10,6 +10,15 @@ import { createErrorHandler } from "./interfaces/http/errorHandler.js";
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_STATIC_DIRECTORY = path.resolve(currentDirectory, "../../ui");
 
+function setStaticCacheHeaders(res, filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === ".html") {
+    res.setHeader("Cache-Control", "no-store");
+  } else if (extension === ".css" || extension === ".js") {
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
+  }
+}
+
 export function createApp({
   container,
   staticDirectory = DEFAULT_STATIC_DIRECTORY,
@@ -50,9 +59,10 @@ export function createApp({
   });
 
   if (staticDirectory && existsSync(staticDirectory)) {
-    app.use(express.static(staticDirectory, { index: "index.html" }));
+    app.use(express.static(staticDirectory, { index: "index.html", setHeaders: setStaticCacheHeaders }));
     app.use((req, res, next) => {
       if (req.method !== "GET" || !req.accepts("html")) return next();
+      res.set("Cache-Control", "no-store");
       res.sendFile(path.join(staticDirectory, "index.html"), (error) => {
         if (error) next(error);
       });

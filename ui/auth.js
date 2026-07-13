@@ -42,7 +42,7 @@
     submitButton.classList.toggle('loading', loading);
     submitButton.querySelector('.button-label').textContent = loading
       ? (mode === 'register' ? 'در حال ساخت حساب…' : 'در حال ورود…')
-      : (mode === 'register' ? 'ساخت حساب' : 'ورود به واژه‌یار');
+      : (mode === 'register' ? 'ساخت حساب' : 'ورود به Vocora');
   }
 
   async function request(path, options = {}) {

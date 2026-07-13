@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import request from "supertest";
 import { createTestContext } from "./helpers/fakes.js";
@@ -11,6 +12,20 @@ describe("HTTP API", () => {
       response.headers["content-security-policy"],
       /upgrade-insecure-requests/
     );
+  });
+
+  it("prevents stale frontend releases from mixing HTML, CSS, and JavaScript", async () => {
+    const staticDirectory = fileURLToPath(new URL("../../ui", import.meta.url));
+    const { app } = createTestContext({}, { staticDirectory });
+
+    const html = await request(app).get("/").expect(200);
+    assert.equal(html.headers["cache-control"], "no-store");
+
+    const stylesheet = await request(app).get("/styles-v2.css").expect(200);
+    assert.equal(stylesheet.headers["cache-control"], "no-cache, must-revalidate");
+
+    const script = await request(app).get("/app-v2.js").expect(200);
+    assert.equal(script.headers["cache-control"], "no-cache, must-revalidate");
   });
 
   it("registers, authenticates, reports the user, and logs out", async () => {
