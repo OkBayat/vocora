@@ -260,7 +260,7 @@ assert.equal(afterImport.words.length, 1502);
 assert.equal(afterImport.words.filter((word) => VazheyarTest.normalizeAnswer(word.term) === 'unique-import-word').length, 1);
 
 document.querySelector('[data-view="settings"]').click();
-assert.equal(document.querySelector('.repo-link').href, 'https://github.com/OkBayat/el2-leitner');
+assert.equal(document.querySelector('.repo-link').href, 'https://github.com/OkBayat/vocora');
 
 const stateBeforeConcurrentChange = JSON.parse(JSON.stringify(serverState));
 serverRevision += 1; // Simulate a write from another tab or device.
