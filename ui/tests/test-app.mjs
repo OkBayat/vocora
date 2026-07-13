@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 const root = new URL('../', import.meta.url);
-const html = fs.readFileSync(new URL('index.html', root), 'utf8')
+const rawHtml = fs.readFileSync(new URL('index.html', root), 'utf8');
+const html = rawHtml
   .replace(/<script src="vocabulary\.js"><\/script>/, '')
-  .replace(/<script src="share-story\.js"><\/script>/, '')
-  .replace(/<script src="app\.js"><\/script>/, '');
+  .replace(/<script src="share-story-v2\.js"><\/script>/, '')
+  .replace(/<script src="app-v2\.js"><\/script>/, '');
 const vocabulary = fs.readFileSync(new URL('vocabulary.js', root), 'utf8');
-const shareStory = fs.readFileSync(new URL('share-story.js', root), 'utf8');
-const app = fs.readFileSync(new URL('app.js', root), 'utf8');
+const shareStory = fs.readFileSync(new URL('share-story-v2.js', root), 'utf8');
+const app = fs.readFileSync(new URL('app-v2.js', root), 'utf8');
 const sourceWords = fs.readFileSync(new URL('../data/IELTS_Listening_Core_1500.md', import.meta.url), 'utf8');
 let serverState = null;
 let serverRevision = 0;
@@ -103,6 +104,9 @@ const readServerState = async () => {
 };
 const originalRandom = dom.window.Math.random;
 assert.ok(VazheyarTest, 'Test API should be exposed');
+assert.match(rawHtml, /href="styles-v2\.css"/, 'The release must use a fresh stylesheet URL instead of a stale CDN object');
+assert.match(rawHtml, /src="share-story-v2\.js"/, 'The share runtime must use a fresh CDN URL');
+assert.match(rawHtml, /src="app-v2\.js"/, 'The app runtime must use a fresh CDN URL');
 assert.equal(document.querySelector('#userEmail').textContent, 'learner@example.com');
 assert.equal(dom.window.localStorage.getItem('vazheyar-ielts-state-v1'), null, 'Normal learning data must not be written to localStorage');
 assert.ok(apiCalls.some((call) => call.path === '/api/state' && call.method === 'PUT'), 'Initial state must be persisted through the API');
@@ -125,10 +129,16 @@ assert.equal(document.querySelectorAll('.stat-card.tone-blue').length, 2);
 assert.equal(document.querySelectorAll('.stat-card.tone-teal').length, 1);
 assert.equal(document.querySelectorAll('.stat-card.tone-coral').length, 1);
 
-assert.equal(document.querySelector('#shareProgressBtn').disabled, true, 'Progress sharing must wait for one real answer');
-assert.match(document.querySelector('#shareProgressLabel').textContent, /بعد از اولین تمرین/, 'The disabled mobile control must explain how to unlock sharing without relying on a tooltip');
-document.querySelector('#shareProgressBtn').click();
-assert.equal(document.querySelector('#shareDialog').open, false, 'A disabled zero-progress button must not open Story Studio');
+const shareProgressButton = document.querySelector('#shareProgressBtn');
+assert.equal(shareProgressButton.disabled, false, 'The share control must always respond, including for an honest journey-start story');
+assert.equal(shareProgressButton.querySelector('span'), null, 'The compact hero control must be icon-only');
+assert.equal(shareProgressButton.querySelector('svg').getAttribute('width'), '20', 'The icon needs an intrinsic width even if stale CSS is present');
+assert.match(shareProgressButton.getAttribute('aria-label'), /شروع مسیر/);
+shareProgressButton.click();
+await VazheyarTest.waitForShareReady();
+assert.equal(document.querySelector('#shareDialog').open, true, 'Zero-progress sharing must open Story Studio instead of looking broken');
+assert.equal(VazheyarTest.getSelectedShareMoment().kind, 'journey');
+document.querySelector('.close-share-dialog').click();
 
 document.querySelector('[data-view="words"]').click();
 assert.equal(document.querySelectorAll('#wordsTableBody tr').length, 40, 'Words table should paginate to 40 rows');
@@ -185,7 +195,7 @@ assert.equal(saved.history.at(-1).promoted, false);
 document.querySelector('#exitSessionBtn').click();
 await VazheyarTest.waitForSaves();
 assert.equal(document.querySelector('#shareProgressBtn').disabled, false, 'Progress sharing unlocks after real practice');
-assert.match(document.querySelector('#shareProgressLabel').textContent, /ساخت استوری پیشرفت/);
+assert.match(document.querySelector('#shareProgressBtn').getAttribute('aria-label'), /پیشرفت واقعی/);
 const stateBeforeOpeningStory = JSON.stringify(VazheyarTest.getState());
 const revisionBeforeOpeningStory = VazheyarTest.getStateRevision();
 document.querySelector('#shareProgressBtn').click();
