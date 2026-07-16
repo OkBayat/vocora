@@ -31,6 +31,8 @@
       this.sequence = 0;
       this.mounted = false;
       this.sessionObserver = null;
+      this.lockedInput = null;
+      this.lockedPlaceholder = '';
 
       this.onRecheckStarted = (event) => this.schedule(event.detail || {});
       this.onRemediationStarted = (event) => {
@@ -82,6 +84,7 @@
 
       this.cancel({ stopSpeech: true });
       this.describeRecheck();
+      this.lockRecallInput();
       const token = ++this.sequence;
       this.pending = { token, wordId: String(wordId), recheckNumber };
       this.timerId = this.window.setTimeout(() => this.playIfCurrent(token), this.delayMs);
@@ -107,8 +110,13 @@
         && session
         && !session.classList.contains('hidden');
 
-      if (!matches) return false;
+      if (!matches) {
+        this.unlockRecallInput();
+        return false;
+      }
+
       this.controller.listen();
+      this.unlockRecallInput({ focus: true });
       const hint = this.document.querySelector('#remediationHint');
       if (hint) hint.textContent = 'تلفظ همین کلمه پخش شد؛ اگر لازم است دوباره گوش کن و سپس کل املا را بنویس.';
       return true;
@@ -126,10 +134,33 @@
       if (inputLabel) inputLabel.textContent = 'املای کلمه‌ای که الان می‌شنوی';
     }
 
+    lockRecallInput() {
+      const input = this.document.querySelector('#remediationInput');
+      if (!input) return;
+      this.unlockRecallInput();
+      this.lockedInput = input;
+      this.lockedPlaceholder = input.placeholder;
+      input.disabled = true;
+      input.setAttribute('aria-busy', 'true');
+      input.placeholder = 'در حال پخش تلفظ…';
+    }
+
+    unlockRecallInput({ focus = false } = {}) {
+      const input = this.lockedInput;
+      if (!input) return;
+      input.disabled = false;
+      input.removeAttribute('aria-busy');
+      input.placeholder = this.lockedPlaceholder;
+      this.lockedInput = null;
+      this.lockedPlaceholder = '';
+      if (focus) input.focus();
+    }
+
     cancel({ stopSpeech = false } = {}) {
       if (this.timerId !== null) this.window.clearTimeout(this.timerId);
       this.timerId = null;
       this.pending = null;
+      this.unlockRecallInput();
       if (stopSpeech) this.window.speechSynthesis?.cancel?.();
     }
 
