@@ -1,0 +1,215 @@
+.practice-remediation {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+  text-align: right;
+}
+
+.flash-card.remediation-active > .instruction,
+.flash-card.remediation-active > #listenWordBtn,
+.flash-card.remediation-active > #slowListenBtn,
+.flash-card.remediation-active > #answerForm,
+.flash-card.remediation-active > #dontKnowBtn,
+.flash-card.remediation-active > #answerFeedback {
+  display: none !important;
+}
+
+.remediation-heading {
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  padding: 17px 18px;
+}
+
+.remediation-kicker {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--primary-2);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.remediation-heading h3,
+.remediation-heading p {
+  margin: 0;
+}
+
+.remediation-heading h3 {
+  font-size: 18px;
+}
+
+.remediation-heading p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.remediation-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.remediation-spelling-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-2);
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.remediation-spelling-row small {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  direction: rtl;
+  font-size: 10px;
+  text-align: right;
+}
+
+.wrong-spelling {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--line));
+  background: var(--danger-soft);
+}
+
+.correct-spelling-row {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line));
+  background: var(--primary-soft);
+}
+
+.remediation-spelling {
+  min-height: 34px;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(19px, 4vw, 26px);
+  font-weight: 700;
+  line-height: 1.35;
+  unicode-bidi: isolate;
+}
+
+.spelling-token {
+  display: inline-block;
+  min-width: .5ch;
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+.spelling-replace,
+.spelling-extra {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: var(--danger);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.spelling-missing,
+.correct-spelling-row .spelling-replace {
+  background: color-mix(in srgb, var(--primary) 25%, transparent);
+  color: var(--primary-2);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.spelling-empty {
+  color: var(--muted);
+  direction: rtl;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.remediation-hint {
+  min-height: 20px;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.remediation-listen {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  justify-self: center;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--primary-2);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.remediation-listen:hover,
+.remediation-listen:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.remediation-listen span:first-child {
+  direction: ltr;
+  font-size: 13px;
+}
+
+.remediation-form {
+  display: grid;
+  gap: 9px;
+}
+
+.remediation-form label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.remediation-form .answer-input {
+  margin-bottom: 0;
+}
+
+.remediation-validation {
+  min-height: 19px;
+  margin: -3px 0 0;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.remediation-validation:empty {
+  display: none;
+}
+
+.remediation-actions {
+  display: grid;
+}
+
+.practice-remediation :focus-visible {
+  outline: 3px solid var(--primary-soft);
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .remediation-comparison {
+    grid-template-columns: 1fr;
+  }
+
+  .remediation-heading {
+    padding: 14px;
+  }
+
+  .remediation-heading h3 {
+    font-size: 16px;
+  }
+}
+
+@supports not (color: color-mix(in srgb, white, black)) {
+  .wrong-spelling { border-color: var(--danger); }
+  .correct-spelling-row { border-color: var(--primary); }
+  .spelling-replace,
+  .spelling-extra { background: var(--danger-soft); }
+  .spelling-missing,
+  .correct-spelling-row .spelling-replace { background: var(--primary-soft); }
+}
