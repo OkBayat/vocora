@@ -408,7 +408,10 @@
         return;
       }
       if (!this.port.isSupportedMode()) return;
-      const entry = this.queue.takeNext({ flush: this.port.shouldFlushBeforeNext() });
+      // A same-session recheck is eligible only after its configured number of
+      // intervening primary cards. Finite sessions may end with a transient recheck
+      // still pending; the session observer clears it instead of collapsing the gap.
+      const entry = this.queue.takeNext();
       if (!entry) return;
       event.preventDefault();
       event.stopImmediatePropagation();
