@@ -1,9 +1,20 @@
 # IELTS Implementation Direction
 
-> Status: **approved-for-planning direction; not implemented or deployed by this document**.
+> Status: **disabled short-text and adaptive-conversation implementations; release evidence pending**.
 > Decision recorded: 2026-09-12. Source baseline: `a96fe551421910d28890b01a17822544002b124b` on `main`.
 
 ## Start here
+
+For the current runtime-content checkpoint and its remaining release gates,
+read [PROGRESS.md](PROGRESS.md). The expanded L0001 teaching companion is
+[lessons/L0001.md](lessons/L0001.md). The generated curriculum below remains
+the original research/authoring baseline; its inherited counts do not describe
+the current managed runtime JSON.
+
+The current user's authoring instruction also overrides the design skill's fixed
+vocabulary-first, spelling-second opening. Select and order those activities by
+the actual lesson objective and prerequisites. The generated blueprints remain
+reference material, not mandatory exercise schedules; see [PROGRESS.md](PROGRESS.md).
 
 The [curriculum README](README.md) defines what learners practise. The existing
 [enterprise architecture playbook](../ARCHITECTURE_PLAYBOOK.md) remains the
@@ -16,23 +27,24 @@ playbook to the next IELTS implementation direction: **deterministic checking fo
 closed tasks, local Qwen feedback for open text, existing Kokoro for TTS, and
 reuse of the current browser PCM/Vosk boundaries for conversational practice**.
 
-The course's numbered lessons, targets, prerequisites, counts, reference packs,
-and blocked production status remain unchanged. These implementation companions
-are not new lessons, generated slide objects, evidence of model quality, or a
-replacement for the curriculum's authoring/runtime compiler.
+The generated curriculum and reference packs remain the research baseline.
+Actual lesson objects and their complete teaching companions are tracked in
+`PROGRESS.md`. These implementation documents do not supply model-quality evidence
+or turn provisional authoring briefs into runtime lessons.
 
 Managed-path increments may be published for branch-level product review as soon
 as every included exercise is registered, runnable, and contract-tested. In this
 context, `published` means discoverable in Courses; it does not mean the complete
-curriculum, adaptive conversation capability, or model-quality gates are ready.
+curriculum or model-quality gates are ready.
 Future interactions remain absent from JSON until their general runtime contracts
 ship.
 
 The current reusable-slide coverage and the exact boundary between slide
 interactions and application orchestration are recorded in
-[SLIDE_CAPABILITIES.md](SLIDE_CAPABILITIES.md). That audit adds only the general
-spatial `labeling` interaction and backward-compatible evidence improvements;
-it does not register the still-incomplete adaptive-conversation workflow.
+[SLIDE_CAPABILITIES.md](SLIDE_CAPABILITIES.md). The base audit added the general
+spatial `labeling` interaction and backward-compatible evidence improvements.
+The course branch also registers adaptive conversation with its complete owned
+workflow; its feature flag remains disabled pending real-model release evidence.
 
 ## Decision and limits
 
@@ -53,8 +65,9 @@ closed-answer scoring, persistence, progression or Leitner scheduling.
 
 ## Delivery order
 
-Each row is a future independently reviewable implementation slice. Nothing in
-this list marks the slice complete or authorizes a deployment.
+Each row identifies an independently reviewable implementation slice. The current
+short-text implementation and remaining release evidence are recorded in
+[WRITING_FEEDBACK.md](WRITING_FEEDBACK.md). This list authorizes no deployment.
 
 | Slice | Deliverable | Acceptance condition |
 | --- | --- | --- |
@@ -68,10 +81,14 @@ this list marks the slice complete or authorizes a deployment.
 | AC-01 | General adaptive-conversation contract and persisted turn workflow | No IELTS-specific component; server-owned JSON context, bounded recording/inference and verifiable completion evidence |
 | AC-02 | L0001 E09 as the first JSON consumer | Two accepted turns, validated Qwen question generation, owned ephemeral Kokoro playback and no IELTS-band claim |
 
-The current deployment foundation provisions the WF-01 candidate runtime and
-model idempotently for target-host experiments. It does not implement WF-01's
-measurements, the WF-03 inference adapter, an HTTP endpoint, a slide, or learner
-access. Those remain separate stacked slices with their own acceptance evidence.
+The deployment foundation provisions the WF-01 candidate runtime and model
+idempotently for target-host experiments. The course-production branch adds the
+disabled WF-02/WF-03/WF-04 short-text contracts, durable jobs, private provider,
+existing-slide integration and optional tokenizer image. It also implements
+AC-01 and the optional AC-02 consumer using the same bounded text worker and
+provider lease. WF-01's real host/model measurements, wider Writing, and actual
+conversation quality remain separate acceptance work. The single course PR accumulates these required generic extensions and
+their lesson consumers without claiming a deployed feedback service.
 
 Start with the [L0001 reference pack](examples/EX01.md) and a small set of newly
 authored alternative responses. Preserve its personal meal-writing objective:
@@ -107,6 +124,7 @@ validation of these later implementation companions. A later intentional package
 release must regenerate its own manifest and any derived documents with the
 owning scripts; it must not advertise inherited counts as new validation.
 
-The current repository change configures Compose and deployment provisioning but
-does not download a model or start a service until an operator explicitly runs
-the deploy script. It changes no database schema, repository protection, or OKF.
+The branch contains additive MySQL migrations 024 and 025 for Writing feedback,
+conversation history and their shared inference admission. It configures Compose
+and deployment provisioning but does not download a model, migrate a production
+database or start a service here. Repository protection and OKF are unchanged.

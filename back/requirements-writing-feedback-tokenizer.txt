@@ -1,0 +1,14 @@
+# Optional CPU tokenizer build/runtime for CPython 3.11 or 3.12.
+# Use scripts/provision-writing-feedback-tokenizer.py; no request-time installation.
+# Versions verified against PyPI and upstream v0.3.16 pyproject on 2026-09-12.
+pip==25.2
+numpy==2.3.3
+typing-extensions==4.15.0
+diskcache==5.6.3
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+scikit-build-core==0.11.6
+packaging==25.0
+pathspec==0.12.1
+# Native source checksum published at https://pypi.org/project/llama-cpp-python/0.3.16/
+llama-cpp-python @ https://files.pythonhosted.org/packages/e4/b4/c8cd17629ced0b9644a71d399a91145aedef109c0333443bef015e45b704/llama_cpp_python-0.3.16.tar.gz#sha256=34ed0f9bd9431af045bb63d9324ae620ad0536653740e9bb163a2e1fcb973be6

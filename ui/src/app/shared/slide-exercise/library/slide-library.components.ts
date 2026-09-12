@@ -17,3 +17,4 @@ export { PronunciationSlideComponent } from './components/pronunciation/pronunci
 export { DictationSlideComponent } from './components/dictation/dictation-slide.component';
 export { SpeakingResponseSlideComponent } from './components/speaking-response/speaking-response-slide.component';
 export { WritingResponseSlideComponent } from './components/writing-response/writing-response-slide.component';
+export { AdaptiveConversationSlideComponent } from './components/adaptive-conversation/adaptive-conversation-slide.component';

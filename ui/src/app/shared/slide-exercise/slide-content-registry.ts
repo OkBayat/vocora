@@ -72,6 +72,7 @@ export function createDefaultSlideContentRegistry(): SlideContentRegistry {
   registry.register({ type: 'dictation', chromeDefaults: scoredDefaults, loadComponent: () => component().then((module) => module.DictationSlideComponent) });
   registry.register({ type: 'speaking-response', chromeDefaults: submittedDefaults, loadComponent: () => component().then((module) => module.SpeakingResponseSlideComponent) });
   registry.register({ type: 'writing-response', chromeDefaults: submittedDefaults, loadComponent: () => component().then((module) => module.WritingResponseSlideComponent) });
+  registry.register({ type: 'adaptive-conversation', chromeDefaults: { footer: { primary: false } }, loadComponent: () => component().then((module) => module.AdaptiveConversationSlideComponent) });
   if (!REUSABLE_SLIDE_TYPES.every((type) => registry.resolve(type))) throw new Error('Reusable slide registry is incomplete.');
   return registry;
 }

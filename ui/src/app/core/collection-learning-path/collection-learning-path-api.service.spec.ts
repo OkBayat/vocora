@@ -56,11 +56,32 @@ describe('CollectionLearningPathApiService', () => {
     expect(remove).toHaveBeenCalledWith('/api/learning-paths/1/enrollment');
     expect(post.mock.calls[1]?.[1]).toEqual({ progressRevision: 7 });
     expect(post.mock.calls[3]?.[1]).toEqual({ scope: 'course' });
+    const uploadedRecording = post.mock.calls[4]?.[1];
+    expect(uploadedRecording).toBeInstanceOf(File);
+    expect(uploadedRecording).not.toBe(recording);
+    expect(uploadedRecording.type).toBe('audio/webm');
+    expect(uploadedRecording.size).toBe(recording.size);
     expect(post.mock.calls[4]).toEqual([
       '/api/learning-paths/1/lessons/5/exercises/10/slides/speaking%2F1/recordings',
-      recording,
+      uploadedRecording,
       { 'Content-Type': 'audio/webm' },
     ]);
     expect(post.mock.calls.at(-1)?.[1]).toEqual({ outcome: { kind: 'completed' }, progressRevision: 8 });
+  });
+
+  it('uses owned writing routes and sends only immutable learner draft fields', async () => {
+    get.mockResolvedValue({ submission: { id: 'draft-1' } });
+    post.mockResolvedValue({ submission: { id: 'draft-1' } });
+    const request = { expectedPathContentVersion: 1, draftText: '  My draft.  ', notes: 'Plan.', idempotencyKey: 'key-1', parentSubmissionId: 'parent-1' };
+    await api.queryWritingFeedbackHistory('path/1', 'lesson/1', 'exercise/1', 'slide/1');
+    expect(get).toHaveBeenLastCalledWith('/api/learning-paths/path%2F1/lessons/lesson%2F1/exercises/exercise%2F1/slides/slide%2F1/writing-feedback');
+    expect(await api.commandSaveWritingFeedback('1', '2', '3', 'slide/1', request)).toEqual({ id: 'draft-1' });
+    expect(post).toHaveBeenLastCalledWith('/api/learning-paths/1/lessons/2/exercises/3/slides/slide%2F1/writing-feedback', request);
+    await api.queryWritingFeedbackSubmission('draft/1');
+    expect(get).toHaveBeenLastCalledWith('/api/writing-feedback/draft%2F1');
+    await api.commandRetryWritingFeedback('draft/1');
+    expect(post).toHaveBeenLastCalledWith('/api/writing-feedback/draft%2F1/retry', {});
+    await api.commandCancelWritingFeedback('draft/1');
+    expect(post).toHaveBeenLastCalledWith('/api/writing-feedback/draft%2F1/cancel', {});
   });
 });

@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -14,7 +15,7 @@ SLIDE_TYPES = {
     "message", "summary", "teaching-card", "selection", "number-input", "choice", "truth",
     "matching", "classification", "ordering", "labeling", "cloze", "structured-completion",
     "short-answer", "word-formation", "error-correction", "rewrite",
-    "pronunciation", "dictation", "speaking-response", "writing-response",
+    "pronunciation", "dictation", "speaking-response", "writing-response", "adaptive-conversation",
 }
 ENUM_FIELDS = {
     "teaching-card": {
@@ -96,6 +97,26 @@ ENUM_FIELDS = {
     },
 }
 TEACHING_BLOCK_KINDS = {"word", "comparison", "correction", "patterns", "example", "note"}
+
+
+def validate_conversation(data: dict) -> None:
+    """Use the application-owned definition parser rather than duplicate its policy."""
+    module = Path(__file__).resolve().parents[4] / "back/src/domain/adaptive-conversation/ConversationDefinition.js"
+    script = (
+        f"import {{ parseConversationDefinition }} from {json.dumps(module.as_uri())};"
+        "let input=''; for await (const chunk of process.stdin) input+=chunk;"
+        "try { parseConversationDefinition(JSON.parse(input)); }"
+        "catch { process.stderr.write('Invalid adaptive conversation definition.'); process.exitCode=1; }"
+    )
+    try:
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script], input=json.dumps(data),
+            text=True, capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError("Conversation runtime contract could not be validated.") from error
+    if result.returncode != 0:
+        raise ValueError("Conversation runtime contract rejected this definition.")
 
 
 def word_tokens(value: str) -> list[str]:
@@ -393,6 +414,9 @@ def validate_slide_data(slide_type: str, data: dict) -> None:
     if slide_type == "writing-response":
         text(data, "mode", "Writing response mode")
         text(data, "prompt", "Writing response prompt")
+        return
+    if slide_type == "adaptive-conversation":
+        validate_conversation(data)
 
 
 def validate_slide_chrome(slide_type: str, slide: dict) -> None:

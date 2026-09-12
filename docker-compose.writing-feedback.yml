@@ -1,0 +1,34 @@
+# Explicit pilot overlay. See ielts/WRITING_FEEDBACK.md and docs/ADAPTIVE_CONVERSATION.md.
+# The normal deployment command does not select this overlay.
+services:
+  db-setup:
+    image: leitner-ielts-app-writing-feedback
+    build:
+      args:
+        VOCORA_WRITING_TOKENIZER: "1"
+
+  app:
+    image: leitner-ielts-app-writing-feedback
+    build:
+      args:
+        VOCORA_WRITING_TOKENIZER: "1"
+    environment:
+      WRITING_FEEDBACK_ENABLED: ${WRITING_FEEDBACK_ENABLED:-false}
+      ADAPTIVE_CONVERSATION_ENABLED: ${ADAPTIVE_CONVERSATION_ENABLED:-false}
+      ADAPTIVE_CONVERSATION_RETENTION_DAYS: ${ADAPTIVE_CONVERSATION_RETENTION_DAYS:-30}
+      WRITING_FEEDBACK_OLLAMA_URL: http://ollama:11434
+      WRITING_FEEDBACK_MODEL_DIGEST: ${WRITING_FEEDBACK_MODEL_DIGEST:-}
+      WRITING_FEEDBACK_TIMEOUT_MS: ${WRITING_FEEDBACK_TIMEOUT_MS:-120000}
+      WRITING_FEEDBACK_RETENTION_DAYS: ${WRITING_FEEDBACK_RETENTION_DAYS:-30}
+      WRITING_FEEDBACK_TOKENIZER_PYTHON: /opt/writing-feedback/bin/python
+      WRITING_FEEDBACK_GGUF_PATH: ${WRITING_FEEDBACK_GGUF_PATH:-}
+      WRITING_FEEDBACK_OLLAMA_MANIFEST_PATH: /opt/vocora-models/models/manifests/registry.ollama.ai/library/qwen3/4b-instruct-2507-q4_K_M
+      WRITING_FEEDBACK_TOKENIZER_VERSION: "0.3.16"
+      WRITING_FEEDBACK_TOKENIZER_LIBRARY_SHA256: ${WRITING_FEEDBACK_TOKENIZER_LIBRARY_SHA256:-}
+    volumes:
+      - ollama_models:/opt/vocora-models:ro
+
+  speech:
+    environment:
+      VOSK_MODEL_ID: ${VOSK_MODEL_ID:-}
+      VOSK_MODEL_DIGEST: ${VOSK_MODEL_DIGEST:-}

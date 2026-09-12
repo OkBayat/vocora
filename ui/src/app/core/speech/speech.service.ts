@@ -71,6 +71,25 @@ export class SpeechService {
 	private browserFallbackSequence: number | null = null;
 	private boundarySequence: number | null = null;
 
+	playServerAudio(load: () => Promise<Blob>, observer?: SpeechPlaybackObserver): boolean {
+		if (typeof globalThis.Audio !== 'function' || typeof globalThis.URL?.createObjectURL !== 'function') return false;
+		this.cancel();
+		const sequence = ++this.playbackSequence;
+		void load().then(async (blob) => {
+			if (!this.isCurrent(sequence)) return;
+			if (!blob.size || !blob.type.startsWith('audio/')) throw new Error('Audio is unavailable.');
+			const url = globalThis.URL.createObjectURL(blob);
+			this.activeObjectUrl = url;
+			const audio = new Audio(url);
+			this.activeAudio = audio;
+			audio.onended = () => this.finishPlayback(sequence, observer);
+			audio.onerror = () => this.failPlayback(sequence, observer);
+			await audio.play();
+			if (this.isCurrent(sequence)) observer?.onStart?.();
+		}).catch(() => this.failPlayback(sequence, observer));
+		return true;
+	}
+
 	speak(
 		text: string,
 		rate = 0.85,

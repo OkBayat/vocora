@@ -23,6 +23,7 @@ Select a slide from the learner action and evidence required. The 19 reusable fa
 | `dictation` | Convert heard language into written form | `answer` and exactly one `audio` or `speech`; optional mode and constraints | Tests sound-to-form production, not broad comprehension. |
 | `speaking-response` | Record an oral response | `mode`, `prompt`; optional bullets, timing, vocabulary, notes | Submission proves a recording exists; semantic evaluation is separate. |
 | `writing-response` | Compose an extended written response | `mode`, `prompt`; optional timer, word target, vocabulary, model, register | Submission and word count do not prove semantic mastery. |
+| `adaptive-conversation` | Answer an oral question and respond to an adaptive follow-up | `guided-dialogue`, goal, opening question, level, bounded turns/recording time and question constraints; optional vocabulary targets | Server-owned sessions preserve ASR and accepted turns. Completion requires an owned receipt, not client counts or a model score. Availability and provider failures remain distinct from learner performance. |
 
 ## Flow-shell types
 

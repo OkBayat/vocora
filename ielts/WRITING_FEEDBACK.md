@@ -1,12 +1,161 @@
 # Self-hosted Writing Feedback Plan
 
-> Status: **implementation plan, not a deployed capability**.
+> Status: **disabled short-text implementation plus the original release plan**.
 > Recorded: 2026-09-12. Repository baseline: `a96fe551421910d28890b01a17822544002b124b`.
 > Scope: CPU-only local text feedback, Writing first; preserve Kokoro and current Shadowing.
 
 Read [the implementation direction](IMPLEMENTATION.md), the [curriculum](README.md),
 and the existing [architecture playbook](../ARCHITECTURE_PLAYBOOK.md) together.
 This is a feature-specific addition, not a second repository architecture playbook.
+
+## Current implementation: short-text formative feedback
+
+The course-production branch implements the WF-02/WF-03/WF-04 short-text slice
+under the existing Express/MySQL and Angular owners. It does not execute the
+enterprise playbook's PostgreSQL, NestJS or TypeScript migration packages. The
+new backend ESM JavaScript files follow the current application runtime; their
+future language/framework migration belongs to WP-03/WP-07 rather than a second
+runtime introduced for this feature.
+
+The existing `writing-response` slide may opt into the generic `writingFeedback`
+content contract. The server resolves its prompt, CEFR level, language objectives,
+response expectations and optional exact source from the owned, started exercise.
+It excludes the personal model answer from the evaluator's context. The first
+pilot accepts sentence and paragraph tasks; its 80-word inference cap does not
+claim support for full IELTS essays or numeric band estimates. L0001's two writing
+tasks supply this context in the canonical course JSON.
+
+The top-level slide `wordLimit` is an authored teaching target, separate from the
+80-word provider admission limit. For example, L0001 asks for 20–40 words; a
+41–80-word response can still receive feedback without losing the original target
+from its task context. Above the pilot cap, the draft remains saved and feedback
+is unavailable. Explicitly unassessed task coverage or source accuracy is shown
+alongside available feedback, rather than implying that every dimension was checked.
+
+An immutable draft and bounded planning notes are saved before inference. Each
+revision has a new identity and may link to an owned earlier draft. The configured
+slide distinguishes saving, saved, queued, processing, available feedback,
+insufficient evidence and unavailable feedback. Selected, validated edits produce
+a separate preview; they never replace the original. An explicit submission
+without optional feedback can use the existing exercise-completion persistence
+when feedback storage is unavailable; that path must not claim the draft is
+durable before the exercise is finished.
+
+### HTTP and persistence ownership
+
+All operations authenticate through the existing account boundary, return private
+`no-store` responses, and enforce ownership on the server. New request fields are
+strictly bounded. `expectedPathContentVersion` is an optimistic precondition from
+the displayed exercise, not a client-owned rubric or authoritative task context.
+A stale version must fail before a draft is evaluated against changed instructions.
+
+| Operation | Route |
+| --- | --- |
+| Save a new draft / list the current task's saved drafts | `POST` / `GET /api/learning-paths/:pathId/lessons/:lessonId/exercises/:exerciseId/slides/:slideId/writing-feedback` |
+| Read an owned submission and feedback state | `GET /api/writing-feedback/:submissionId` |
+| Retry unavailable feedback / cancel active feedback | `POST /api/writing-feedback/:submissionId/retry` / `cancel` |
+| Delete the owned feedback submission | `DELETE /api/writing-feedback/:submissionId` |
+
+Migration 024 adds submission, provider-lease and daily-quota tables. It changes
+no existing progress tables or recorded correctness. The worker holds no database
+transaction while calling the tokenizer or model. A global lease, idempotency,
+bounded retries and conditional final writes protect accepted results across
+concurrent requests, cancellation, deletion and restarts. Cancellation must retain
+provider capacity until the underlying operation stops or its lease expires.
+
+Trial limits are one active provider operation, eight queued/running jobs globally,
+two per owner, twenty new feedback submissions per owner per UTC day, ten saved
+drafts per writing slide and exercise run, and three provider attempts per draft.
+The active provider slot and eight-global/two-owner queue are now shared with
+adaptive conversation through `LocalTextInferenceWorker`; neither family owns a
+second inference scheduler. The existing Writing worker facade delegates to that
+same owner. Conversation has its own session quotas and retains its own prompt,
+schema and result policy while using the pinned structured-text client.
+Queue refusal preserves an otherwise accepted draft. Daily quota accounting
+survives individual submission deletion. These are bounded trial settings, not
+measured service capacity or a restriction on the number of course lessons.
+
+Feedback copies expire after a configurable 1–90 days, with a 30-day trial default.
+The worker purges expired feedback copies; ordinary completed learning-attempt
+evidence remains owned by the existing learning-path lifecycle. Deleting a feedback
+copy does not promise erasure of that separate learning history or backups. Review
+the actual privacy/retention policy before a learner-facing rollout.
+
+### Provider identity and tokenizer
+
+The private provider verifies the exact model tag and full manifest digest before
+and after inference. It records prompt/schema versions and hashes, decoding
+settings and tokenizer identity. It sends no model tools or cloud fallback.
+Only a validated result with anchored Unicode code-point spans reaches the UI.
+Malformed, truncated, contradictory or ungrounded model output is unavailable
+feedback, never a wrong learner answer.
+
+`WritingFeedbackTokenizer` uses the same local GGUF vocabulary as the pinned
+Ollama model. It renders the bounded `vocora-qwen-instruct-chatml-v1` prompt,
+including the JSON schema, and counts it before sending that exact prompt through
+Ollama's `raw: true` generate API. It rejects context overflow without truncation
+and compares the actual `prompt_eval_count` with its count. The original Ollama
+template hash remains provenance; the raw renderer has its own version. Its
+subprocess receives private text on stdin, is killed on cancellation and must
+close before its caller releases capacity.
+
+The helper hashes the complete GGUF on each call and loads its vocabulary without
+creating an inference context. Include this I/O and process startup in target-host
+latency measurements. No installed tokenizer, native build, actual model inference
+or token-count parity was verified in the authoring environment.
+
+### Explicit pilot provisioning
+
+Feedback defaults to `WRITING_FEEDBACK_ENABLED=false`. The normal application image
+and deployment script do not install or select the tokenizer overlay. An operator
+can inspect its installation plan without network access or writes:
+
+```sh
+python3 back/scripts/provision-writing-feedback-tokenizer.py \
+  --venv /opt/writing-feedback --dry-run
+```
+
+The optional build requires CPython 3.11/3.12, venv, a C/C++ compiler, CMake >=3.21
+and Ninja. The provisioner pins Python dependencies and the native source archive
+checksum, disables GPU/native SIMD optimizations, checks a fresh native import,
+and records the actual native-library hash and resolved packages. Compiler and
+base-image differences still matter; this is not a bit-for-bit build guarantee.
+
+With the normal non-production Compose environment configured, build the separate
+pilot image without starting or deploying services:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.writing-feedback.yml build app
+docker run --rm --entrypoint cat leitner-ielts-app-writing-feedback \
+  /opt/writing-feedback/tokenizer-build.json
+```
+
+The overlay mounts the existing Ollama model volume read-only. Set these values
+from observed artifacts before enabling an isolated evaluation:
+
+| Environment value | Source |
+| --- | --- |
+| `WRITING_FEEDBACK_MODEL_DIGEST` | `sha256:` plus the full pinned Ollama manifest digest |
+| `WRITING_FEEDBACK_GGUF_PATH` | `/opt/vocora-models/models/blobs/sha256-...` for that manifest's model layer |
+| `WRITING_FEEDBACK_TOKENIZER_LIBRARY_SHA256` | `native_library_sha256` in the tokenizer build record |
+| `WRITING_FEEDBACK_OLLAMA_MANIFEST_PATH` | Read-only matching manifest; the overlay selects the exact candidate tag |
+| `WRITING_FEEDBACK_TOKENIZER_PYTHON` | `/opt/writing-feedback/bin/python` |
+| `WRITING_FEEDBACK_TOKENIZER_VERSION` | `0.3.16` |
+
+The app user must be able to read the mounted files. Missing or changed identities
+fail closed. No model pull or package install
+occurs in a learner request. The optional Docker/native build was not executed in
+the authoring environment, which has no Docker runtime or model artifacts.
+
+Use [the original evaluation cases and operator guide](evaluation/README.md) for
+the isolated target-host experiment. Its default command is a no-inference dry
+run; actual execution requires explicit operator metadata and a preselected
+latency budget. Synthetic contract tests do not satisfy WF-01's model-quality,
+CPU, memory, concurrent-load or token-parity release gates. Adaptive conversation
+is implemented behind its own disabled flag; its speech, feedback and follow-up
+quality require separate evidence described in the existing conversation document.
+
+The numbered sections below preserve the design rationale and release criteria.
 
 ## 1. What was inspected and what is still unknown
 

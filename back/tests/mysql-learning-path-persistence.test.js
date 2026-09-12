@@ -187,6 +187,32 @@ test("recording artifact migration stores owner-bound audio evidence without des
   assert.doesNotMatch(migration, /DROP TABLE|DROP COLUMN|DELETE FROM/u);
 });
 
+test("recording artifact persistence converts application ISO timestamps before handing them to mysql2", async () => {
+  const pool = new RecordingPool();
+  const repository = new MySqlLearningPathRecordingArtifactRepository(pool);
+  const exerciseStartedAt = "2026-09-12T19:00:00.123Z";
+  const createdAt = "2026-09-12T19:06:13.097Z";
+
+  await repository.save({
+    publicId: "artifact-1",
+    userId: "user-1",
+    exerciseId: "exercise-1",
+    exerciseStartedAt,
+    slideId: "slide-1",
+    mimeType: "audio/webm",
+    byteSize: 4,
+    sha256: "a".repeat(64),
+    bytes: Buffer.from("test"),
+    createdAt,
+  });
+
+  const parameters = pool.calls[0].parameters;
+  assert.ok(parameters[2] instanceof Date);
+  assert.equal(parameters[2].toISOString(), exerciseStartedAt);
+  assert.ok(parameters[8] instanceof Date);
+  assert.equal(parameters[8].toISOString(), createdAt);
+});
+
 test("Learning Path transaction manager commits successful work and releases the connection", async () => {
   const connection = new TransactionConnection();
   const manager = new MySqlLearningPathTransactionManager(new ConnectionPool(connection));

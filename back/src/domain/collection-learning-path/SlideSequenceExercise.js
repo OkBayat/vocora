@@ -1,5 +1,7 @@
 import { ValidationError } from "../errors.js";
 import { parseVocabularyExerciseScope } from "./VocabularyExerciseScope.js";
+import { parseWritingFeedbackTask } from "../writing-feedback/WritingFeedbackTask.js";
+import { parseConversationDefinition } from "../adaptive-conversation/ConversationDefinition.js";
 
 export const SLIDE_SEQUENCE_TYPE = "slides.sequence";
 export const SLIDE_SEQUENCE_SCHEMA_VERSION = 1;
@@ -11,7 +13,7 @@ const GENERATED_TYPES = new Map([
   ["meaning-choice", "choice"],
 ]);
 const UNSCORED_TYPES = new Set(["message", "teaching-card", "summary", LESSON_VOCABULARY_SCOPE_SLIDE_TYPE]);
-const SUBMITTED_TYPES = new Set(["selection", "number-input", "speaking-response", "writing-response"]);
+const SUBMITTED_TYPES = new Set(["selection", "number-input", "speaking-response", "writing-response", "adaptive-conversation"]);
 const ANSWER_FIELD_TYPES = new Set(["cloze", "structured-completion", "word-formation", "labeling"]);
 const MAX_EVIDENCE_BYTES = 256_000;
 
@@ -334,6 +336,18 @@ function verifySubmission(slide, resultData, context) {
     const steps = (value - config.min) / config.step;
     return Math.abs(steps - Math.round(steps)) < Number.EPSILON * 10;
   }
+  if (slide.type === "adaptive-conversation") {
+    const id = typeof resultData.conversationEvidenceId === "string" ? resultData.conversationEvidenceId : "";
+    const receipt = context.conversationEvidence?.get(id);
+    const config = parseConversationDefinition(slide.data);
+    return Boolean(id && receipt) && receipt.status === "completed"
+      && ["userId", "pathId", "lessonId", "exerciseId"].every((key) => String(receipt[key]) === String(context[key]))
+      && receipt.slideId === slide.id
+      && new Date(receipt.exerciseStartedAt).getTime() === new Date(context.exerciseStartedAt).getTime()
+      && receipt.minimumTurns === config.minimumTurns
+      && Number.isSafeInteger(receipt.acceptedTurnCount)
+      && receipt.acceptedTurnCount >= config.minimumTurns && receipt.acceptedTurnCount <= config.maximumTurns;
+  }
   if (slide.type === "speaking-response") {
     const artifactId = String(resultData.recordingArtifactId ?? "").trim();
     const artifact = context.recordingArtifacts?.get(artifactId);
@@ -377,6 +391,8 @@ export function resolveSlideSequenceDefinition(exercise) {
   slides.filter((slide) => slide.type === "ordering").forEach((slide) => orderingConfig(slide.data));
   slides.filter((slide) => slide.type === "labeling").forEach((slide) => labelingConfig(slide.data));
   slides.filter((slide) => slide.type === "short-answer").forEach((slide) => shortAnswerConfig(slide.data));
+  slides.filter((slide) => slide.type === "writing-response").forEach((slide) => parseWritingFeedbackTask(slide.data));
+  slides.filter((slide) => slide.type === "adaptive-conversation").forEach((slide) => parseConversationDefinition(slide.data));
   if (slides.filter((slide) => slide.terminal).length !== 1 || !slides.at(-1).terminal) {
     invalid("slides.sequence requires exactly one terminal final slide.");
   }

@@ -1,3 +1,5 @@
+import type { WritingFeedbackContext } from '../writing-feedback-contracts';
+
 export type SlideInteractionState =
 	'idle' | 'answered-correct' | 'answered-incorrect' | 'revealed';
 
@@ -351,6 +353,8 @@ export interface SpeakingResponseSlideData extends SlideTypeData {
 }
 
 export interface WritingResponseSlideData extends SlideTypeData {
+	readonly writingFeedback?: WritingFeedbackContext;
+	readonly wordLimit?: number;
 	readonly mode:
 		| 'sentence'
 		| 'paragraph'
@@ -365,6 +369,22 @@ export interface WritingResponseSlideData extends SlideTypeData {
 	readonly planningNotes?: boolean;
 	readonly modelAnswer?: string;
 	readonly register?: 'formal' | 'informal' | 'neutral';
+}
+
+export interface AdaptiveConversationSlideData {
+	readonly mode: 'guided-dialogue';
+	readonly goal: string;
+	readonly openingPrompt: string;
+	readonly minimumTurns: number;
+	readonly maximumTurns: number;
+	readonly responseSeconds: number;
+	readonly learnerLevel: 'beginner' | 'elementary' | 'intermediate' | 'advanced';
+	readonly targetVocabulary: readonly string[];
+	readonly questionConstraints: {
+		readonly maximumWords: number;
+		readonly oneQuestionOnly: true;
+		readonly avoidAnswerDisclosure: true;
+	};
 }
 
 export const REUSABLE_SLIDE_TYPES = [
@@ -387,6 +407,7 @@ export const REUSABLE_SLIDE_TYPES = [
 	'dictation',
 	'speaking-response',
 	'writing-response',
+	'adaptive-conversation',
 ] as const;
 
 export type ReusableSlideType = (typeof REUSABLE_SLIDE_TYPES)[number];

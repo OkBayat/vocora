@@ -9,6 +9,18 @@ Load this reference after the exercise objective and evidence requirement are kn
 
 ## Canonical envelope
 
+The `adaptive-conversation` interaction uses the application-owned
+`back/src/domain/adaptive-conversation/ConversationDefinition.js` contract and
+the workflow documented in `docs/ADAPTIVE_CONVERSATION.md`. Its `data` contains
+the communicative goal, opening question, level, turn/time bounds, question
+constraints and optional vocabulary targets. Do not configure provider names,
+system prompts, rubrics or answer keys. The validator invokes that runtime parser through
+Node with a bounded timeout; it fails if the parser cannot run. The slide's
+submitted evidence contains an owned `conversationEvidenceId`, verified by the
+learning-path application. A numeric model signal or client turn count cannot
+complete the interaction. Provider availability must be established before a
+required lesson uses this interaction.
+
 Use application-owned camelCase field names:
 
 ```json

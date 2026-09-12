@@ -1,3 +1,4 @@
+import { MySqlConversationRepository } from "../../infrastructure/persistence/mysql/adaptive-conversation/MySqlConversationRepository.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { ActivateVocabularyIntake } from "../../application/collection-learning-path/commands/ActivateVocabularyIntake.js";
@@ -141,6 +142,7 @@ export function createCollectionLearningPathModule({ pool, adapters = {} }) {
   const verifyShadowingExerciseCompletion = new VerifyShadowingExerciseCompletion({ shadowingEvidenceReader });
   const getSlideSequenceExerciseContext = new GetSlideSequenceExerciseContext({ vocabularyReader: vocabularyIntakeReader });
   const verifySlideSequenceCompletion = new VerifySlideSequenceCompletion({
+    conversationRepository: adapters.conversationRepository ?? new MySqlConversationRepository(pool),
     vocabularyReader: vocabularyIntakeReader,
     recordingArtifactRepository,
   });

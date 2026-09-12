@@ -20,6 +20,17 @@ export class ApiClientService {
   async put<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> { return this.request<T>('PUT', path, body, headers); }
   async delete<T>(path: string): Promise<T> { return this.request<T>('DELETE', path); }
 
+  async postBlob(path: string, body: unknown): Promise<Blob> {
+    try {
+      return await firstValueFrom(this.http.post(this.runtime.apiUrl(path), body, {
+        responseType: 'blob', withCredentials: true, headers: new HttpHeaders(this.runtime.requestHeaders()),
+      }));
+    } catch (error) {
+      if (error instanceof HttpErrorResponse) throw new ApiError('Audio request failed.', error.status);
+      throw error;
+    }
+  }
+
   private async request<T>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     try {
       return await firstValueFrom(this.http.request<T>(method, this.runtime.apiUrl(path), {

@@ -21,7 +21,9 @@ interaction or remains in its owning application workflow.
 The 960 lesson plans currently use 15 authoring interaction names. The runtime
 library already contained those 15 plus `word-formation`, `selection`, and
 `number-input`. The audit found one missing learner interaction and two general
-contract gaps; this slice brings the registered reusable total to 19.
+contract gaps; that base slice brought the registered reusable total to 19.
+The course branch adds the complete adaptive-conversation workflow as the twentieth
+registered interaction. Its real-model release gate remains open.
 
 ## Capability map
 
@@ -43,6 +45,7 @@ contract gaps; this slice brings the registered reusable total to 19.
 | Notice or rehearse sound and stress | `pronunciation` | Supported; repetition is not an automatic pronunciation score. |
 | Convert aural language to written form | `dictation` | Supported; not a substitute for broad listening comprehension. |
 | Record an independent oral response | `speaking-response` | Supported as participation evidence with an authenticated recording artifact. Semantic and acoustic evaluation remain separate. |
+| Answer a spoken question and respond to a generated follow-up | `adaptive-conversation` | Registered with owned recording, transcript, feedback, private question audio and server-issued completion evidence. Disabled pending model-quality and capacity evidence. |
 | Write a sentence, paragraph, report, essay, or letter | `writing-response` | Supported as preserved submitted production. Semantic feedback remains separate. |
 | Choose an unscored route or preference | `selection` | Supported; application-owned dynamic expansion stays outside JSON. |
 | Choose an unscored bounded quantity | `number-input` | Supported; this is setup evidence, not a numeric test answer. |
@@ -60,17 +63,19 @@ not become visual slide aliases:
 - content licensing, complete recordings, transcript alignment, maps, diagrams,
   charts, answer rationales, and calibration data.
 
-`adaptive-conversation` is a planned reusable interaction, but it cannot be
-released as a UI-only placeholder. Its first valid slice must include the owned
-session state machine, PCM/ASR boundary, Qwen result validation, Kokoro playback,
-persistence, authenticated APIs, server-verifiable completion evidence, registry
-entry, and UI states together. Until that vertical slice ships, L0001 E09 remains
-absent from managed JSON as required by `docs/ADAPTIVE_CONVERSATION.md`.
+`adaptive-conversation` now includes the owned session state machine, PCM/ASR
+boundary, Qwen result validation, Kokoro playback, persistence, authenticated APIs,
+server-verifiable completion evidence, registry entry and UI states. L0001 E09 is
+its optional first consumer. See `docs/ADAPTIVE_CONVERSATION.md` for the implemented
+contract and unmeasured release gates. Configuration does not enable the service.
 
 ## Authoring boundary
 
-IELTS lesson content remains JSON-only. `k2-lesson-exercise-design` may plan any
-of the 19 registered reusable interactions using its provisional envelope.
-`k2-exercise-builder` owns exact runtime data and now validates spatial labels,
-multiple complete orders, and separate short-answer evidence. Neither skill may
-invent an IELTS-only type or provider/model fields in lesson JSON.
+Runtime lesson content remains JSON-driven, with a separate complete Markdown
+teaching companion for every lesson. `k2-lesson-exercise-design` provides the
+provisional planning envelope; its historical catalog is not the runtime registry.
+`k2-exercise-builder` owns exact runtime data and validates spatial labels,
+multiple complete orders, separate short-answer evidence and adaptive-conversation
+configuration. Neither skill may invent an IELTS-only type or provider/model
+fields in lesson JSON. Vocabulary and spelling are placed only where the lesson
+objective justifies them, following the user's explicit course override.

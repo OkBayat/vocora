@@ -1,0 +1,94 @@
+@if (content(); as data) {
+  <article class="slide-type" data-testid="adaptive-conversation-slide">
+    <section class="slide-interaction d-flex flex-column gap-3 text-break">
+      <p class="slide-instruction">{{ data.goal }}</p>
+      <h1>{{ controller()?.currentTurn()?.question || data.openingPrompt }}</h1>
+      @if (controller(); as control) {
+        @if (control.loading()) { <p role="status">Restoring conversation practice…</p> }
+        @if (!control.loaded() && !control.loading() && !control.contentChanged()) {
+          <voco-secondary-button (activated)="control.load()">Try loading again</voco-secondary-button>
+        }
+        @if (control.loaded() && !control.enabled()) { <p role="status">New conversation practice is not enabled. Saved practice remains available.</p> }
+        @if (control.error()) { <p role="alert">{{ control.error() }}</p> }
+        @if (control.loaded() && control.enabled() && !control.contentChanged() && (!control.session() || control.session()?.status === 'cancelled' || control.session()?.status === 'expired')) {
+          <p>Your answers are transcribed and saved for this practice. Speech recognition may make mistakes.</p>
+          <voco-primary-button [disabled]="control.busy()" (activated)="control.start()">Start conversation</voco-primary-button>
+        }
+        @if (control.session(); as session) {
+          <p class="text-body-secondary mb-0">{{ session.acceptedTurnCount }} practice turns saved · {{ session.minimumTurns }} required · up to {{ session.maximumTurns }}</p>
+          @if (session.status === 'cancelled') { <p>Conversation cancelled. It has not been completed.</p> }
+          @if (session.status === 'expired') { <p>This conversation expired. Start a new practice session.</p> }
+          @if (control.audioError()) { <p role="status">{{ control.audioError() }}</p> }
+          <div class="d-flex flex-wrap gap-3">
+            @if (control.audioPlaying()) {
+              <voco-secondary-button (activated)="control.stopAudio()">Stop question audio</voco-secondary-button>
+            } @else {
+              <voco-secondary-button [disabled]="control.phase() !== 'idle' || control.contentChanged()" (activated)="control.listen()">Play question</voco-secondary-button>
+            }
+            @if (control.canRecord()) { <voco-primary-button (activated)="control.record()">Record answer</voco-primary-button> }
+            @if (control.phase() === 'recording') { <voco-primary-button (activated)="control.stop()">Stop recording</voco-primary-button> }
+            @if (control.phase() === 'requesting' || control.phase() === 'recording' || control.currentTurn()?.status === 'recording') {
+              <voco-secondary-button [disabled]="control.phase() === 'uploading'" (activated)="control.cancelRecording()">Cancel recording</voco-secondary-button>
+            }
+          </div>
+          @if (!control.supported && session.status === 'active') { <p role="status">Microphone practice needs a secure connection and a browser with Web Audio support.</p> }
+          @if (control.phase() === 'requesting') { <p role="status">Allow microphone access when your browser asks. Preparing your recording…</p> }
+          @if (control.phase() === 'recording') { <p role="status">Recording · {{ control.seconds().toFixed(1) }} of {{ session.responseSeconds }} seconds</p> }
+          @if (control.phase() === 'uploading') { <p role="status">Sending your recorded answer…</p> }
+          @if (control.liveTranscript(); as transcript) {
+            @if (control.phase() !== 'idle') { <div><strong>Live transcript</strong><p class="text-break">{{ transcript.text }}</p><p class="text-body-secondary">This provisional transcript may change.</p></div> }
+          }
+          @if (control.canRetryUpload()) { <voco-primary-button (activated)="control.retryUpload()">Retry sending recording</voco-primary-button> }
+          @if (control.recordingLimitReached() && !control.error()) {
+            <p role="status">This question has reached its recording limit. Cancel this conversation and start a new session to record again.</p>
+          }
+          @if (control.currentTurn()?.status === 'recording' && control.phase() === 'idle' && !control.canRetryUpload()) {
+            <p>An interrupted recording is still open. Cancel it before recording again.</p>
+          }
+          @if (control.currentTurn()?.status === 'queued' || control.currentTurn()?.status === 'evaluating') {
+            <p role="status">Your transcript is saved. Feedback is {{ control.currentTurn()?.status === 'queued' ? 'queued' : 'processing' }}.</p>
+          }
+          @if (control.currentTurn()?.status === 'retryable_failure') {
+            @if (control.currentTurn()?.errorCode === 'CONVERSATION_ASR_CHANGED') {
+              <p role="status">Speech recognition settings changed. Your transcript is saved. Cancel this conversation and start a new session.</p>
+            } @else if (control.canRecord()) {
+              <p role="status">There was not enough clear evidence to assess this answer. You can record it again; it has not been marked wrong.</p>
+            } @else {
+              <p role="status">Feedback processing is unavailable. Your transcript is saved. No answer was marked wrong.</p>
+            }
+            @if (control.canRetry()) { <voco-secondary-button (activated)="control.retry()">Retry feedback</voco-secondary-button> }
+            @if (control.canRecord()) { <p>Record this answer again when you are ready.</p> }
+          }
+          @if (control.pollingPaused()) { <p role="status">Automatic checks paused. Your saved answers are unchanged.</p> }
+          @if (session.status === 'active' && control.phase() === 'idle') {
+            <voco-secondary-button [disabled]="control.busy() || control.contentChanged()" (activated)="control.check()">Check conversation status</voco-secondary-button>
+          }
+          @for (turn of session.turns; track turn.id) {
+            @if (turn.transcript || turn.feedback) {
+              <section class="border rounded-3 p-3 d-flex flex-column gap-2" aria-label="Saved conversation turn">
+                <strong>Turn {{ turn.index }} · {{ turn.question }}</strong>
+                @if (turn.transcript; as transcript) {
+                  <p class="text-break mb-0">{{ transcript.text || 'No clear transcript was available.' }}</p>
+                  <p class="text-body-secondary mb-0">Speech recognition can make mistakes. @if (transcript.confidence === null) { Confidence is unavailable. }</p>
+                  @if (transcript.status === 'insufficient_evidence') { <p>There was not enough clear speech to assess this answer.</p> }
+                }
+                @if (turn.feedback; as feedback) {
+                  <p class="text-break">{{ feedback.feedback }}</p>
+                  @if (feedback.assessmentStatus === 'feedback_available' && feedback.formativeTaskScore !== null) {
+                    <p class="mb-0">Task response signal: {{ feedback.formativeTaskScore }} of 2</p>
+                    <p class="text-body-secondary mb-0">0: did not answer this question · 1: relevant but incomplete · 2: answered this question</p>
+                  }
+                  <p class="text-body-secondary mb-0">IELTS band, pronunciation and fluency are not assessed.</p>
+                }
+              </section>
+            }
+          }
+          @if (control.canFinish()) { <voco-primary-button (activated)="control.finish()">Finish conversation</voco-primary-button> }
+          @if (session.status === 'active') {
+            <voco-secondary-button (activated)="control.cancel()">Cancel conversation</voco-secondary-button>
+          }
+        }
+      } @else { <p role="status">Open this conversation from its learning path to start practice.</p> }
+    </section>
+  </article>
+}

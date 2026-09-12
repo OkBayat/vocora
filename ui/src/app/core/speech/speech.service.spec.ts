@@ -92,6 +92,29 @@ function installBackend(
 }
 
 describe("SpeechService backend playback", () => {
+	it("plays owned server audio without submitting private text or using browser fallback", async () => {
+		const backend = installBackend({ playError: new Error('Playback failed.') });
+		const browser = installBrowserSpeech();
+		const onError = vi.fn();
+		const service = new SpeechService();
+		service.playServerAudio(async () => new Blob(['private question'], { type: 'audio/mpeg' }), { onError });
+		await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+		expect(backend.fetch).not.toHaveBeenCalled();
+		expect(browser.speak).not.toHaveBeenCalled();
+		expect(backend.revokeObjectURL).toHaveBeenCalledOnce();
+	});
+
+	it("does not play a late owned audio response after cancellation", async () => {
+		const backend = installBackend();
+		let resolve!: (audio: Blob) => void;
+		const service = new SpeechService();
+		service.playServerAudio(() => new Promise<Blob>(done => { resolve = done; }));
+		service.cancel();
+		resolve(new Blob(['private audio'], { type: 'audio/mpeg' }));
+		await Promise.resolve();
+		expect(backend.createObjectURL).not.toHaveBeenCalled();
+	});
+
 	afterEach(() => {
 		FakeAudio.latest = null;
 		FakeAudio.constructorError = null;

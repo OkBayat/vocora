@@ -5,6 +5,7 @@ import {
   ComponentRef,
   EventEmitter,
   Input,
+  Injector,
   OnChanges,
   OnDestroy,
   OnInit,
@@ -19,10 +20,16 @@ import type { ExerciseContextView } from '../../../../domain/collection-learning
 import type { ExerciseComponent, ExerciseContext, ExerciseOutcome } from './exercise-contracts';
 import { createLearningPathExerciseRegistry } from './learning-path-exercise-registry';
 import { UnsupportedExerciseComponent } from './unsupported-exercise.component';
+import { WritingFeedbackService } from '../../../../core/writing-feedback/writing-feedback.service';
+import type { WritingFeedbackControllerFactory } from '../../../../shared/slide-exercise/writing-feedback-contracts';
+import { AdaptiveConversationService } from '../../../../core/adaptive-conversation/adaptive-conversation.service';
+import type { AdaptiveConversationControllerFactory } from '../../../../shared/slide-exercise/adaptive-conversation-contracts';
 
 function runtimeContext(
   context: ExerciseContextView,
   ensureStarted?: () => Promise<boolean>,
+  writingFeedback?: WritingFeedbackControllerFactory,
+  adaptiveConversation?: AdaptiveConversationControllerFactory,
 ): ExerciseContext {
   return {
     pathId: context.path.id,
@@ -35,6 +42,8 @@ function runtimeContext(
     config: context.exercise.config,
     payload: context.payload,
     ensureStarted,
+    writingFeedback,
+    adaptiveConversation,
   };
 }
 
@@ -57,6 +66,7 @@ export class ExerciseHostComponent implements OnInit, OnChanges, OnDestroy {
   rendererLoadFailed = false;
   rendererLoading = false;
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly injector = inject(Injector);
   private readonly registry = createLearningPathExerciseRegistry();
   private componentRef: ComponentRef<ExerciseComponent> | null = null;
   private outcomeSubscription: Subscription | null = null;
@@ -113,7 +123,18 @@ export class ExerciseHostComponent implements OnInit, OnChanges, OnDestroy {
       const renderer = await loader();
       if (version !== this.renderVersion) return;
       this.componentRef = this.outlet.createComponent(renderer);
-      this.componentRef.instance.load(runtimeContext(this.context, this.ensureStarted));
+      const context = this.context;
+      const ensureStarted = this.ensureStarted;
+      this.componentRef.instance.load(runtimeContext(context, ensureStarted, (slideId) =>
+        this.injector.get(WritingFeedbackService).create({
+          pathId: context.path.id, lessonId: context.lesson.id, exerciseId: context.exercise.id, slideId,
+          expectedPathContentVersion: Number(context.path.contentVersion),
+        }, ensureStarted),
+        (slideId) => this.injector.get(AdaptiveConversationService).create({
+          pathId: context.path.id, lessonId: context.lesson.id, exerciseId: context.exercise.id, slideId,
+          expectedPathContentVersion: Number(context.path.contentVersion),
+        }, ensureStarted),
+      ));
       this.outcomeSubscription = this.componentRef.instance.outcome.subscribe((outcome) => this.outcome.emit(outcome));
       this.rendererLoading = false;
       this.changeDetector.markForCheck();

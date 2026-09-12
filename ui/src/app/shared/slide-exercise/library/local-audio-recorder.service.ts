@@ -49,7 +49,7 @@ export class LocalAudioRecorderService {
 		}
 	}
 
-	async stop(): Promise<string> {
+	async stop(): Promise<{ blob: Blob; url: string }> {
 		const recorder = this.recorder;
 		if (!recorder || recorder.state === 'inactive')
 			throw new Error('No recording is active.');
@@ -71,7 +71,7 @@ export class LocalAudioRecorderService {
 		}
 		if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
 		this.objectUrl = URL.createObjectURL(blob);
-		return this.objectUrl;
+		return { blob, url: this.objectUrl };
 	}
 
 	cancel(): void {

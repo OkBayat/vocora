@@ -41,6 +41,36 @@ def valid_exercise() -> dict:
 
 
 class ExerciseValidatorTests(unittest.TestCase):
+    def conversation_exercise(self, **changes) -> dict:
+        exercise = valid_exercise()
+        exercise["config"]["slides"][0] = {
+            "id": "conversation", "type": "adaptive-conversation",
+            "data": {
+                "mode": "guided-dialogue", "goal": "Exchange information about meals.",
+                "openingPrompt": "What do you eat in the morning?", "minimumTurns": 2,
+                "maximumTurns": 3, "responseSeconds": 30, "learnerLevel": "beginner",
+                "targetVocabulary": ["bread", "drink water"],
+                "questionConstraints": {"maximumWords": 14, "oneQuestionOnly": True, "avoidAnswerDisclosure": True},
+                **changes,
+            },
+        }
+        return exercise
+
+    def test_accepts_registered_bounded_conversation(self) -> None:
+        result = MODULE.validate_exercise(self.conversation_exercise())
+        self.assertEqual(result["slide_types"], ["adaptive-conversation", "summary"])
+
+    def test_conversation_reuses_authoritative_runtime_constraints(self) -> None:
+        for changes in [
+            {"model": "external-model"}, {"minimumTurns": 1}, {"maximumTurns": 5},
+            {"minimumTurns": 4, "maximumTurns": 3}, {"responseSeconds": 31},
+            {"targetVocabulary": ["bread", "BREAD"]}, {"targetVocabulary": None},
+            {"openingPrompt": "What do you eat? What do you drink?"},
+            {"goal": "<script>run()</script>"}, {"mode": "ielts-part1"},
+        ]:
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "Conversation runtime contract"):
+                MODULE.validate_exercise(self.conversation_exercise(**changes))
+
     def test_accepts_runtime_ready_selection_sequence(self) -> None:
         result = MODULE.validate_exercise(valid_exercise())
         self.assertEqual(result["status"], "valid")

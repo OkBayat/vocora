@@ -7,6 +7,21 @@ const SIMPLE_DIAGRAM =
 
 export const REUSABLE_SLIDE_FIXTURES: readonly SlideExerciseSlide[] = [
 	{
+		id: 'showcase-adaptive-conversation',
+		type: 'adaptive-conversation',
+		data: {
+			mode: 'guided-dialogue',
+			goal: 'Exchange simple information about a familiar meal.',
+			openingPrompt: 'What do you eat in the morning?',
+			minimumTurns: 2,
+			maximumTurns: 3,
+			responseSeconds: 30,
+			learnerLevel: 'beginner',
+			targetVocabulary: ['bread', 'rice', 'water', 'milk', 'eat', 'drink'],
+			questionConstraints: { maximumWords: 14, oneQuestionOnly: true, avoidAnswerDisclosure: true },
+		},
+	},
+	{
 		id: 'showcase-teaching-card',
 		type: 'teaching-card',
 		data: {

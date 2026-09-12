@@ -36,7 +36,7 @@ describe('LocalAudioRecorderService', () => {
 		expect(stop).toHaveBeenCalledOnce();
 	});
 
-	it('releases the microphone and returns a local playback URL after stopping', async () => {
+	it('returns recording bytes that survive cancellation of the local playback URL', async () => {
 		const stopTrack = vi.fn();
 		const stream = { getTracks: () => [{ stop: stopTrack }] };
 		class Recorder {
@@ -48,6 +48,7 @@ describe('LocalAudioRecorderService', () => {
 			start(): void {}
 			stop(): void {
 				this.state = 'inactive';
+				this.ondataavailable?.({ data: new Blob(['recording'], { type: this.mimeType }) } as BlobEvent);
 				this.onstop?.();
 			}
 		}
@@ -63,8 +64,15 @@ describe('LocalAudioRecorderService', () => {
 		const service = new LocalAudioRecorderService();
 
 		await service.start();
-		await expect(service.stop()).resolves.toBe('blob:local');
+		const recording = await service.stop();
+		expect(recording.url).toBe('blob:local');
+		expect(recording.blob.type).toBe('audio/webm');
+		expect(recording.blob.size).toBe(9);
+		expect(URL.createObjectURL).toHaveBeenCalledWith(recording.blob);
 		expect(stopTrack).toHaveBeenCalledOnce();
+		service.cancel();
+		expect(URL.revokeObjectURL).toHaveBeenCalledWith(recording.url);
+		expect(recording.blob.size).toBe(9);
 	});
 
 	it('releases the microphone when stopping is interrupted', async () => {

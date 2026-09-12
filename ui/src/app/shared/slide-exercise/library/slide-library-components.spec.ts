@@ -59,7 +59,7 @@ function configure(): {
 				useValue: {
 					supported: () => true,
 					start: vi.fn().mockResolvedValue(undefined),
-					stop: vi.fn().mockResolvedValue('blob:recording'),
+					stop: vi.fn().mockResolvedValue({ blob: new Blob(['recording'], { type: 'audio/webm' }), url: 'blob:recording' }),
 					cancel: vi.fn(),
 				},
 			},
@@ -1126,6 +1126,50 @@ describe('reusable slide library behavior', () => {
 		await component.stopRecording();
 		expect(component.recordingState()).toBe('recorded');
 		expect(component.recordingUrl()).toBe('blob:recording');
+	});
+
+	it('preserves submitted speaking audio and notes while allowing playback', async () => {
+		configure();
+		const fixture = TestBed.createComponent(SpeakingResponseSlideComponent);
+		const component = fixture.componentInstance;
+		const recorder = TestBed.inject(LocalAudioRecorderService);
+		const submitted = vi.fn();
+		component.event.subscribe(submitted);
+		load(component, 'speaking-response', {
+			mode: 'part1',
+			prompt: 'What do you eat for breakfast?',
+			notesEnabled: true,
+		});
+		fixture.detectChanges();
+		const notes = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+		notes.value = 'Bread and water.';
+		notes.dispatchEvent(new Event('input'));
+		await component.startRecording();
+		await component.stopRecording();
+		component.handleAction('submit');
+		fixture.detectChanges();
+
+		expect(notes.disabled).toBe(true);
+		expect((fixture.nativeElement.querySelector('voco-secondary-button button') as HTMLButtonElement).disabled).toBe(true);
+		vi.mocked(recorder.stop).mockResolvedValueOnce({ blob: new Blob(['replacement']), url: 'blob:replacement' });
+		notes.value = 'Different notes.';
+		notes.dispatchEvent(new Event('input'));
+		await component.startRecording();
+		await component.stopRecording();
+		component.handleAction('submit');
+		fixture.detectChanges();
+
+		expect(recorder.start).toHaveBeenCalledOnce();
+		expect(recorder.stop).toHaveBeenCalledOnce();
+		expect(component.recordingUrl()).toBe('blob:recording');
+		expect(component.notes()).toBe('Bread and water.');
+		expect(submitted).toHaveBeenCalledExactlyOnceWith({
+			type: 'submitted',
+			data: { recordingBlob: expect.any(Blob), notes: 'Bread and water.', mode: 'part1' },
+		});
+		const playback = fixture.nativeElement.querySelector('audio') as HTMLAudioElement;
+		expect(playback.getAttribute('src')).toBe('blob:recording');
+		expect(playback.controls).toBe(true);
 	});
 
 	it('counts and persists WritingResponseSlide responses in the emitted result', () => {

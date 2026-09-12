@@ -2,6 +2,7 @@ import {
 	ChangeDetectionStrategy,
 	Component,
 	EventEmitter,
+	OnDestroy,
 	Output,
 	ViewChild,
 	inject,
@@ -72,6 +73,7 @@ function learnerResponse(
 	if (slideType === "error-correction")
 		return { correction: data["correction"] };
 	if (slideType === "rewrite") return { response: data["response"] };
+	if (slideType === "adaptive-conversation") return { conversationEvidenceId: data["conversationEvidenceId"] };
 	if (slideType === "writing-response")
 		return {
 			response: data["response"],
@@ -93,7 +95,7 @@ function learnerResponse(
 	styleUrl: "./slides-sequence-exercise.component.scss",
 	changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SlidesSequenceExerciseComponent implements ExerciseComponent {
+export class SlidesSequenceExerciseComponent implements ExerciseComponent, OnDestroy {
 	private readonly api = inject(CollectionLearningPathApiService);
 	@Output() readonly outcome = new EventEmitter<ExerciseOutcome>();
 	@ViewChild(SlideExerciseComponent)
@@ -129,6 +131,10 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 	private readonly savedResultIds = new Set<string>();
 	private readonly failedResultIds = new Set<string>();
 	private readonly resultSaves = new Map<string, Promise<void>>();
+	private readonly recordings = new Map<string, {
+		blob: Promise<Blob>;
+		upload?: Promise<{ artifactId: string }>;
+	}>();
 	private loadGeneration = 0;
 
 	load(context: ExerciseContext): void {
@@ -142,6 +148,7 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 		this.savedResultIds.clear();
 		this.failedResultIds.clear();
 		this.resultSaves.clear();
+		this.recordings.clear();
 		this.loadGeneration += 1;
 		try {
 			const definition = parseSlideSequenceExercise(context.config);
@@ -160,7 +167,27 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 	}
 
 	onSlideResult(result: SlideExerciseResult): void {
-		void this.persistSlideResult(result).catch((error) => this.error.set(message(error)));
+		const generation = this.loadGeneration;
+		const recording = result.slideType === "speaking-response"
+			? this.captureRecording(result)
+			: Promise.resolve();
+		void Promise.all([recording, this.persistSlideResult(result)]).catch((error) => {
+			if (generation === this.loadGeneration) this.error.set(message(error));
+		});
+	}
+
+	private captureRecording(result: SlideExerciseResult): Promise<Blob> {
+		const existing = this.recordings.get(result.slideId);
+		if (existing) return existing.blob;
+		// Retain the actual bytes. Preview URLs belong to the renderer and may
+		// be revoked on navigation or unavailable to fetch under browser policy.
+		const blob = record(result.data)?.["recordingBlob"];
+		if (!(blob instanceof Blob) || !blob.size) {
+			return Promise.reject(new Error("A local speaking recording is missing."));
+		}
+		const recording = { blob: Promise.resolve(blob) };
+		this.recordings.set(result.slideId, recording);
+		return recording.blob;
 	}
 
 	onAction(event: SlideExerciseActionEvent): void {
@@ -213,29 +240,37 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 			this.slideExercise?.currentSlide?.id !== slideId
 		)
 			return;
+		const runtime = this.runtime();
+		if (!runtime) return;
+		const generation = this.loadGeneration;
 		this.finishing.set(true);
 		this.error.set("");
 		try {
 			const slideResults = this.slideExercise.deckController.results();
 			await Promise.all(slideResults.map((result) => this.persistSlideResult(result)));
+			if (generation !== this.loadGeneration) return;
 			const results = (
 				await Promise.all(
-					slideResults.map((result) => this.evidenceResult(result)),
+					slideResults.map((result) => this.evidenceResult(result, runtime, generation)),
 				)
 			).filter((result) => result !== null);
-			await this.runtime()?.sequenceCompletion?.(slideResults);
+			if (generation !== this.loadGeneration) return;
+			await runtime.sequenceCompletion?.(slideResults);
+			if (generation !== this.loadGeneration) return;
 			this.completed.set(true);
+			this.recordings.clear();
 			this.outcome.emit({
 				kind: "completed",
 				evidence: { schemaVersion: 1, results },
 			});
 		} catch (error) {
+			if (generation !== this.loadGeneration) return;
 			this.error.set(
 				message(error) ||
 					"The speaking recording could not be saved. Try again.",
 			);
 		} finally {
-			this.finishing.set(false);
+			if (generation === this.loadGeneration) this.finishing.set(false);
 		}
 	}
 
@@ -264,7 +299,11 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 		return save;
 	}
 
-	private async evidenceResult(result: SlideExerciseResult): Promise<{
+	private async evidenceResult(
+		result: SlideExerciseResult,
+		runtime: ExerciseContext,
+		generation: number,
+	): Promise<{
 		rootSlideId: string;
 		slideType: string;
 		itemId: string | undefined;
@@ -272,20 +311,21 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 		data: Record<string, unknown>;
 	} | null> {
 		if (result.slideType === "speaking-response") {
-			const recordingUrl = String(record(result.data)?.["recordingUrl"] ?? "").trim();
-			if (!recordingUrl) throw new Error("A speaking recording is missing.");
-			const response = await fetch(recordingUrl);
-			if (!response.ok) throw new Error("The speaking recording could not be read.");
-			const recording = await response.blob();
-			const runtime = this.runtime();
-			if (!runtime) throw new Error("The exercise context is unavailable.");
-			const artifact = await this.api.commandUploadSlideSequenceRecording(
-				runtime.pathId,
-				runtime.lessonId,
-				runtime.exerciseId,
-				result.rootSlideId,
-				recording,
-			);
+			const recording = this.recordings.get(result.slideId);
+			if (!recording) throw new Error("A speaking recording is missing.");
+			if (!recording.upload) {
+				const upload = recording.blob.then((blob) => {
+					if (generation !== this.loadGeneration) throw new Error("The exercise changed before the recording was saved.");
+					return this.api.commandUploadSlideSequenceRecording(
+						runtime.pathId, runtime.lessonId, runtime.exerciseId, result.rootSlideId, blob,
+					);
+				});
+				recording.upload = upload;
+				void upload.catch(() => {
+					if (recording.upload === upload) recording.upload = undefined;
+				});
+			}
+			const artifact = await recording.upload;
 			const evidenceData: Record<string, unknown> = {
 				recordingArtifactId: artifact.artifactId,
 			};
@@ -314,6 +354,13 @@ export class SlidesSequenceExerciseComponent implements ExerciseComponent {
 	}
 
 	cancel(): void {
+		this.loadGeneration += 1;
+		this.recordings.clear();
 		if (!this.completed()) this.outcome.emit({ kind: "cancelled" });
+	}
+
+	ngOnDestroy(): void {
+		this.loadGeneration += 1;
+		this.recordings.clear();
 	}
 }

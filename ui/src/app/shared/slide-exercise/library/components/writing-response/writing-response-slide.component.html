@@ -25,8 +25,8 @@
 						matInput
 						rows="2"
 						[value]="notes()"
-						[disabled]="interactionState() !== 'idle'"
-						(input)="notes.set(inputFrom($event))"
+						[readonly]="originalLocked()"
+						(input)="setNotes(inputFrom($event))"
 					></textarea>
 				</mat-form-field>
 			}
@@ -36,7 +36,7 @@
 					matInput
 					rows="8"
 					[value]="response()"
-					[disabled]="interactionState() !== 'idle'"
+					[readonly]="originalLocked()"
 					(input)="setResponse(inputFrom($event))"
 				></textarea
 				><mat-hint
@@ -47,6 +47,106 @@
 					}
 				</mat-hint></mat-form-field
 			>
+			@if (feedback(); as controller) {
+				<p class="text-body-secondary">Aim for up to {{ writingWordTarget() }} words. Feedback supports up to {{ controller.availability().maxWords }} words. You can save up to {{ controller.availability().maxCharacters }} characters.</p>
+				@if (response().length > controller.availability().maxCharacters || notes().length > 2000) {
+					<p role="alert">Your text is still here. Keep the response and planning notes within 2,000 characters each to save a feedback draft.</p>
+				}
+				@if (controller.loading()) {
+					<p role="status">Restoring saved responses…</p>
+				}
+				@if (controller.busy()) {
+					<p role="status">Saving your request…</p>
+				}
+				@if (controller.error()) {
+					<p role="alert">{{ controller.error() }}</p>
+					@if (!controller.loaded() && !controller.contentChanged() && interactionState() === 'idle') {
+						<voco-secondary-button [disabled]="controller.loading()" (activated)="reloadFeedback()">Try loading again</voco-secondary-button>
+					}
+					@if (interactionState() === 'idle' && response().trim() && !controller.contentChanged()) {
+						<voco-secondary-button [disabled]="controller.busy() || controller.loading()" (activated)="submitWithoutFeedback()">Submit without feedback</voco-secondary-button>
+					}
+				}
+				@if (!controller.active() && controller.submissions().length) {
+					<mat-form-field appearance="outline"><mat-label>Responses to earlier lesson versions</mat-label>
+						<mat-select (selectionChange)="selectSubmission($event.value)">
+							@for (version of controller.submissions(); track version.id) { <mat-option [value]="version.id">{{ version.createdAt }}</mat-option> }
+						</mat-select>
+					</mat-form-field>
+				}
+				@if (controller.active(); as active) {
+					<section class="d-flex flex-column gap-3 mt-3" aria-label="Writing feedback">
+						<p role="status" class="mb-0">{{ statusMessage(active) }}</p>
+						<p class="text-body-secondary mb-0">Use these suggestions to revise. No IELTS score is given.</p>
+						@if (controller.submissions().length > 1) {
+							<mat-form-field appearance="outline">
+								<mat-label>Saved version</mat-label>
+								<mat-select [value]="active.id" [disabled]="revising() || controller.busy()" (selectionChange)="selectSubmission($event.value)">
+									@for (version of controller.submissions(); track version.id) {
+										<mat-option [value]="version.id">{{ version.parentSubmissionId ? 'Revision' : 'Original' }} · {{ version.createdAt }}</mat-option>
+									}
+								</mat-select>
+							</mat-form-field>
+						}
+						@if (active.contentVersion !== controller.currentContentVersion()) {
+							<p>This response belongs to an earlier lesson version. It is shown for reference.</p>
+						}
+						@if (active.parentSubmissionId || active.contentVersion !== controller.currentContentVersion()) {
+							<div><strong>Saved revision</strong><p class="text-break">{{ active.draftText }}</p></div>
+						}
+						@if (controller.pollingPaused()) {
+							<p class="mb-0">Automatic checks paused. Your saved response is safe.</p>
+							<voco-secondary-button [disabled]="controller.busy()" (activated)="controller.check()">Check feedback again</voco-secondary-button>
+						}
+						@if (active.status === 'queued' || active.status === 'running') {
+							<voco-secondary-button [disabled]="controller.busy()" (activated)="controller.cancel()">Cancel feedback</voco-secondary-button>
+						}
+						@if (canRetryFeedback()) {
+							<voco-secondary-button [disabled]="controller.busy()" (activated)="controller.retry()">Retry feedback</voco-secondary-button>
+						}
+						@if (active.feedback; as result) {
+							@if (result.not_assessed.includes('task_coverage')) {
+								<p class="text-body-secondary mb-0">Task requirements were not assessed.</p>
+							}
+							@if (result.not_assessed.includes('source_fidelity')) {
+								<p class="text-body-secondary mb-0">Accuracy against the source was not assessed.</p>
+							}
+							@if (result.assessment_status === 'insufficient_evidence') {
+								<p class="text-break">{{ result.abstention_reason }}</p>
+							}
+							<p class="text-break">{{ result.task_comment }}</p>
+							@for (issue of result.issues; track $index) {
+								<div class="border rounded-3 p-3 text-break">
+									<strong>{{ issue.kind === 'error' ? 'Possible error' : 'Suggestion' }}</strong>
+									@if (issue.quoted_text) { <p class="mb-1">“{{ issue.quoted_text }}”</p> }
+									<p>{{ issue.explanation }}</p>
+									@if (issue.replacement !== null && issue.span) {
+										<p>Suggested edit: {{ issue.replacement }}</p>
+										<mat-checkbox [checked]="selectedEdits().includes($index)" [disabled]="revising()" (change)="selectEdit($index, $event.checked)">Use this edit in the preview</mat-checkbox>
+									}
+								</div>
+							}
+							@if (result.revision_actions.length) {
+								<ul class="mb-0">@for (action of result.revision_actions; track $index) { <li class="text-break">{{ action }}</li> }</ul>
+							}
+						}
+						@if (selectedEdits().length) {
+							<div><strong>Selected edit preview</strong><p class="text-break">{{ preview() }}</p></div>
+						}
+						@if (active.contentVersion === controller.currentContentVersion() && !revising()) {
+							<voco-secondary-button [disabled]="controller.busy()" (activated)="startRevision()">Write a separate revision</voco-secondary-button>
+						} @else if (revising()) {
+							@if (recoveredLocalDraft()) { <p>Your original was restored. Your unsaved text is kept below as a separate revision.</p> }
+							<mat-form-field appearance="outline"><mat-label>Your revision</mat-label><textarea matInput rows="6" [readonly]="revisionLocked()" [value]="revisionText()" (input)="setRevision(inputFrom($event))"></textarea></mat-form-field>
+							@if (data.planningNotes) {
+								<mat-form-field appearance="outline"><mat-label>Revision notes</mat-label><textarea matInput rows="2" [readonly]="revisionLocked()" [value]="revisionNotes()" (input)="setRevisionNotes(inputFrom($event))"></textarea></mat-form-field>
+							}
+							<p class="text-body-secondary">Your original stays unchanged. Revision text and notes each allow up to 2,000 characters.</p>
+							<voco-primary-button [disabled]="controller.busy() || !revisionText().trim() || revisionText().length > controller.availability().maxCharacters || revisionNotes().length > 2000" (activated)="saveRevision()">{{ revisionLocked() ? 'Retry saving revision' : 'Save revision' }}</voco-primary-button>
+						}
+					</section>
+				}
+			}
 			@if (remainingSeconds() > 0) {
 				<p class="timer" aria-live="polite">
 					Time remaining: {{ remainingSeconds() }}s

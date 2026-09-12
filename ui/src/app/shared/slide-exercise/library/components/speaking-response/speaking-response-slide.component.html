@@ -39,7 +39,8 @@
 						matInput
 						rows="2"
 						[value]="notes()"
-						(input)="notes.set(inputFrom($event))"
+						[disabled]="interactionState() !== 'idle'"
+						(input)="setNotes(inputFrom($event))"
 					></textarea>
 				</mat-form-field>
 			}
@@ -48,7 +49,9 @@
 					<voco-secondary-button
 						type="button"
 						[disabled]="
-							recordingState() === 'requesting' || !supported
+							interactionState() !== 'idle' ||
+							recordingState() === 'requesting' ||
+							!supported
 						"
 						aria-label="Start recording"
 						(activated)="startRecording()"
@@ -62,6 +65,7 @@
 				} @else {
 					<voco-primary-button
 						type="button"
+						[disabled]="interactionState() !== 'idle'"
 						aria-label="Stop recording"
 						(activated)="stopRecording()"
 					>

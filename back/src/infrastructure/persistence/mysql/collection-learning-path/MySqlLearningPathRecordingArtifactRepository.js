@@ -1,5 +1,13 @@
 import { LearningPathRecordingArtifactRepository } from "../../../../application/collection-learning-path/ports/LearningPathRecordingArtifactRepository.js";
 
+function timestampParameter(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new TypeError("Learning Path recording artifact timestamp must be a valid date.");
+  }
+  return date;
+}
+
 export class MySqlLearningPathRecordingArtifactRepository extends LearningPathRecordingArtifactRepository {
   constructor(pool) {
     super();
@@ -17,13 +25,13 @@ export class MySqlLearningPathRecordingArtifactRepository extends LearningPathRe
       [
         artifact.publicId,
         artifact.userId,
-        artifact.exerciseStartedAt,
+        timestampParameter(artifact.exerciseStartedAt),
         artifact.slideId,
         artifact.mimeType,
         artifact.byteSize,
         artifact.sha256,
         artifact.bytes,
-        artifact.createdAt,
+        timestampParameter(artifact.createdAt),
         artifact.exerciseId,
       ],
     );
